@@ -1,0 +1,261 @@
+sequenceDiagram
+    participant U as User
+    participant UI as UserInterface
+    participant Auth as AuthService
+    participant SS as SampleService
+    participant SR as SampleRepository
+    participant TS as TestService
+    participant TR as TestRepository
+    participant PS as PurchasingService
+    participant PR as RequestRepository
+    participant SY as SyncService
+    participant DB as IndexedDB
+    participant AS as AuditService
+    participant VS as ValidationService
+    participant NS as NotificationService
+    participant GD as GoogleDrive
+
+    Note over U,GD: User Authentication Flow
+    U->>UI: Login with credentials
+    UI->>Auth: authenticate(email, password)
+    Auth->>DB: Query user credentials
+    DB-->>Auth: Return user data
+    Auth->>Auth: Validate credentials
+    Auth-->>UI: Return auth token & user
+    UI->>UI: Store auth token
+    UI->>UI: Redirect to dashboard
+
+    Note over U,GD: Sample Creation with Auto-numbering
+    U->>UI: Click "Create Sample"
+    UI->>SS: getNextSampleNumber()
+    SS->>SR: getNextSampleNumber()
+    SR->>DB: SELECT MAX(sampleNo) FROM samples
+    DB-->>SR: Return max number (e.g., 465)
+    SR-->>SS: Return next number (466)
+    SS-->>UI: Return sample number
+    UI->>UI: Pre-fill form with sample number
+
+    U->>UI: Fill sample form and submit
+    UI->>VS: validateSample(sampleData)
+    VS->>VS: Check required fields, uniqueness
+    VS-->>UI: Return validation result
+    
+    alt Validation passes
+        UI->>SS: createSample(sampleData)
+        SS->>SR: create(sample)
+        SR->>DB: INSERT sample record
+        DB-->>SR: Return created sample
+        SR-->>SS: Return sample
+        SS->>AS: logCreate('Sample', sample, userId)
+        AS->>DB: INSERT audit log
+        SS-->>UI: Return created sample
+        UI->>UI: Update samples list
+        UI->>SY: triggerBackgroundSync()
+        SY->>SY: Queue sync operation
+    else Validation fails
+        UI->>UI: Display validation errors
+    end
+
+    Note over U,GD: Test Creation and Approval Workflow
+    U->>UI: Click "Add Test" on sample
+    UI->>UI: Open test creation form
+    U->>UI: Select test type and fill data
+    UI->>VS: validateTest(testData)
+    VS-->>UI: Return validation result
+    
+    alt Validation passes
+        UI->>TS: createTest(testData)
+        TS->>TR: create(test)
+        TR->>DB: INSERT test record
+        DB-->>TR: Return created test
+        TR-->>TS: Return test
+        TS->>AS: logCreate('Test', test, userId)
+        AS->>DB: INSERT audit log
+        TS-->>UI: Return created test
+        UI->>UI: Update test list
+    end
+
+    U->>UI: Click "Approve Test"
+    UI->>TS: approveTest(testId)
+    TS->>TR: findById(testId)
+    TR->>DB: SELECT test WHERE id = testId
+    DB-->>TR: Return test
+    TR-->>TS: Return test
+    
+    TS->>TS: Get current approved test for sample
+    TS->>TR: findApprovedBySample(sampleId)
+    TR->>DB: SELECT test WHERE sampleId AND approved = true
+    DB-->>TR: Return current approved test
+    TR-->>TS: Return approved test
+    
+    alt Has existing approved test
+        TS->>TR: update(existingTestId, {approved: false})
+        TR->>DB: UPDATE test SET approved = false
+    end
+    
+    TS->>TR: update(testId, {approved: true})
+    TR->>DB: UPDATE test SET approved = true
+    DB-->>TR: Return updated test
+    TR-->>TS: Return updated test
+    
+    TS->>SS: updateSample(sampleId, {approved: true, approvedTestId: testId})
+    SS->>SR: update(sampleId, updates)
+    SR->>DB: UPDATE sample SET approved = true, approvedTestId = testId
+    DB-->>SR: Return updated sample
+    SR-->>SS: Return sample
+    SS-->>TS: Return sample
+    
+    TS->>AS: logUpdate('Test', testId, oldValues, newValues, userId)
+    AS->>DB: INSERT audit log
+    TS->>NS: sendApprovalNotification(sample, test)
+    NS->>NS: Queue notification
+    TS-->>UI: Return approved test
+    UI->>UI: Update UI with approval status
+
+    Note over U,GD: Purchasing Workflow
+    U->>UI: Create purchase request
+    UI->>VS: validateRequest(requestData)
+    VS-->>UI: Return validation result
+    
+    alt Validation passes
+        UI->>PS: createRequest(requestData)
+        PS->>PR: create(request)
+        PR->>DB: INSERT request with status 'Requested'
+        DB-->>PR: Return created request
+        PR-->>PS: Return request
+        PS->>AS: logCreate('Request', request, userId)
+        AS->>DB: INSERT audit log
+        PS-->>UI: Return request
+        UI->>UI: Add to "Requested" column
+    end
+
+    U->>UI: Move request to "To Be Ordered"
+    UI->>PS: updateRequestStatus(requestId, 'Sent to Ordering')
+    PS->>PR: update(requestId, {status: 'Sent to Ordering'})
+    PR->>DB: UPDATE request SET status = 'Sent to Ordering'
+    DB-->>PR: Return updated request
+    PR-->>PS: Return request
+    PS->>AS: logUpdate('Request', requestId, oldValues, newValues, userId)
+    AS->>DB: INSERT audit log
+    PS-->>UI: Return request
+    UI->>UI: Move to "To Be Ordered" column
+
+    U->>UI: Mark as ordered with order details
+    UI->>PS: moveToOrdered(requestId, orderData)
+    PS->>PR: update(requestId, {status: 'Ordered', orderReference, orderDate})
+    PR->>DB: UPDATE request with order details
+    DB-->>PR: Return updated request
+    PR-->>PS: Return request
+    PS->>AS: logUpdate('Request', requestId, oldValues, newValues, userId)
+    AS->>DB: INSERT audit log
+    PS->>NS: sendOrderNotification(request)
+    NS->>NS: Queue notification
+    PS-->>UI: Return ordered request
+    UI->>UI: Move to "Ordered" column with green highlight
+    UI->>UI: Update linked sample status
+
+    Note over U,GD: Offline-First Synchronization
+    U->>UI: Perform operations while offline
+    UI->>DB: Store changes locally
+    DB-->>UI: Confirm local storage
+    UI->>SY: Register background sync
+    SY->>SY: Queue sync tasks
+
+    Note over U,GD: Connection restored
+    SY->>SY: Detect connection restored
+    SY->>DB: Get pending changes
+    DB-->>SY: Return change queue
+    
+    SY->>GD: Upload local changes
+    GD-->>SY: Return upload result
+    
+    SY->>GD: Download remote changes
+    GD-->>SY: Return remote data
+    
+    SY->>SY: Detect conflicts
+    alt Has conflicts
+        SY->>SY: Apply conflict resolution (last-write-wins)
+        SY->>DB: Update with resolved data
+    else No conflicts
+        SY->>DB: Apply remote changes
+    end
+    
+    SY->>DB: Update sync metadata
+    SY->>UI: Emit sync complete event
+    UI->>UI: Update UI with sync status
+    UI->>NS: showSyncNotification(result)
+
+    Note over U,GD: Analytics Dashboard Loading
+    U->>UI: Navigate to Analytics
+    UI->>UI: Check cache for analytics data
+    
+    alt Cache miss or expired
+        UI->>AS: getKPIs(dateRange)
+        AS->>SR: Query samples with filters
+        SR->>DB: SELECT samples with date range
+        DB-->>SR: Return sample data
+        SR-->>AS: Return samples
+        
+        AS->>TR: Query tests with filters
+        TR->>DB: SELECT tests with date range
+        DB-->>TR: Return test data
+        TR-->>AS: Return tests
+        
+        AS->>PR: Query requests with filters
+        PR->>DB: SELECT requests with date range
+        DB-->>PR: Return request data
+        PR-->>AS: Return requests
+        
+        AS->>AS: Calculate KPIs and metrics
+        AS-->>UI: Return processed analytics
+        UI->>UI: Cache analytics data
+    else Cache hit
+        UI->>UI: Use cached data
+    end
+    
+    UI->>UI: Render KPI cards and charts
+
+    Note over U,GD: Multi-language Support
+    U->>UI: Click language toggle (EN/AR)
+    UI->>UI: Set language preference
+    UI->>DB: Store language preference
+    UI->>UI: Load Arabic translations
+    UI->>UI: Switch to RTL layout
+    UI->>UI: Update all text content
+    UI->>UI: Adjust component directions
+    UI->>UI: Re-render interface
+
+    Note over U,GD: Import/Export Operations
+    U->>UI: Click "Import Samples"
+    UI->>UI: Open file picker
+    U->>UI: Select CSV/XLSX file
+    UI->>UI: Parse file content
+    UI->>VS: validateImportData(data)
+    VS->>VS: Validate each record
+    VS-->>UI: Return validation results
+    
+    alt All records valid
+        UI->>SS: bulkImport(samples)
+        SS->>SR: bulkImport(samples)
+        SR->>DB: INSERT multiple samples
+        DB-->>SR: Return created samples
+        SR-->>SS: Return samples
+        SS->>AS: logBulkCreate('Sample', samples, userId)
+        AS->>DB: INSERT multiple audit logs
+        SS-->>UI: Return import result
+        UI->>UI: Show success message
+        UI->>SY: triggerBackgroundSync()
+    else Has validation errors
+        UI->>UI: Show validation errors
+        UI->>UI: Allow user to fix and retry
+    end
+
+    U->>UI: Click "Export Samples"
+    UI->>SS: exportSamples('CSV', filter)
+    SS->>SR: findAll(filter)
+    SR->>DB: SELECT samples with filter
+    DB-->>SR: Return filtered samples
+    SR-->>SS: Return samples
+    SS->>SS: Format data as CSV
+    SS-->>UI: Return CSV blob
+    UI->>UI: Trigger file download

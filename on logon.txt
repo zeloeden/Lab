@@ -1,0 +1,7 @@
+$script = (Resolve-Path ".\scripts\scale-soft.ps1").Path
+$com    = "COM3"   # change if your adapter shows a different COM
+$baud   = 9600
+$ms     = 250
+schtasks /delete /tn JA5003Bridge /f 2>$null
+schtasks /create /tn JA5003Bridge /sc onlogon /rl HIGHEST /tr "powershell -ExecutionPolicy Bypass -File `"$script`" -Com $com -Baud $baud -Ms $ms" /f
+schtasks /run /tn JA5003Bridge

@@ -1,0 +1,430 @@
+classDiagram
+    class User {
+        +string id
+        +string email
+        +string name
+        +UserRole role
+        +Permission[] permissions
+        +UserPreferences preferences
+        +Date createdAt
+        +Date updatedAt
+        +authenticate() boolean
+        +hasPermission(resource: string, action: string) boolean
+        +updatePreferences(prefs: UserPreferences) void
+    }
+
+    class UserRole {
+        +string id
+        +string name
+        +Permission[] permissions
+        +validateRole() boolean
+        +getPermissions() Permission[]
+    }
+
+    class Permission {
+        +string resource
+        +string[] actions
+        +checkAccess(action: string) boolean
+    }
+
+    class Sample {
+        +string id
+        +number sampleNo
+        +string itemNameEN
+        +string itemNameAR
+        +string supplierId
+        +string batchNumber
+        +Date dateOfSample
+        +Purpose purpose
+        +SampleStatus status
+        +boolean approved
+        +string approvedTestId
+        +StorageLocation storageLocation
+        +string customIdNo
+        +SamplePricing pricing
+        +string createdBy
+        +string updatedBy
+        +Date createdAt
+        +Date updatedAt
+        +approve(testId: string) void
+        +updateStatus(status: SampleStatus) void
+        +calculateTotalPrice(quantity: number) number
+        +validate() ValidationResult
+    }
+
+    class StorageLocation {
+        +string cabinetNo
+        +string trayNo
+        +string refrigeratorShelf
+        +getFullLocation() string
+        +validate() boolean
+    }
+
+    class SamplePricing {
+        +number basePrice
+        +string currency
+        +ScalingPrice[] scalingPrices
+        +getPriceForTier(tier: string) number
+        +hasScaling() boolean
+        +validate() boolean
+    }
+
+    class ScalingPrice {
+        +string tier
+        +number price
+        +validate() boolean
+    }
+
+    class Supplier {
+        +string id
+        +string name
+        +string code
+        +ContactInfo contactInfo
+        +Address address
+        +boolean scalingEnabled
+        +string notes
+        +Date createdAt
+        +Date updatedAt
+        +enableScaling() void
+        +disableScaling() void
+        +validate() ValidationResult
+        +getSamples() Sample[]
+    }
+
+    class ContactInfo {
+        +string phone
+        +string email
+        +string contactPerson
+        +validate() boolean
+        +getDisplayName() string
+    }
+
+    class Address {
+        +string street
+        +string city
+        +string country
+        +string postalCode
+        +getFullAddress() string
+        +validate() boolean
+    }
+
+    class Test {
+        +string id
+        +string sampleId
+        +UseType useType
+        +Date date
+        +TestResult result
+        +boolean approved
+        +PersonalUseTest personalUseData
+        +IndustrialTest industrialData
+        +string createdBy
+        +string updatedBy
+        +Date createdAt
+        +Date updatedAt
+        +approve() void
+        +reject() void
+        +setResult(result: TestResult) void
+        +validate() ValidationResult
+        +getFormula() FormulaEntry[]
+    }
+
+    class PersonalUseTest {
+        +string topNote
+        +string baseNote
+        +validate() boolean
+        +getNotes() string
+    }
+
+    class IndustrialTest {
+        +FormulaEntry[] formula
+        +FormulaStatus formulaStatus
+        +addFormulaEntry(entry: FormulaEntry) void
+        +removeFormulaEntry(id: string) void
+        +calculateTotalPercentage() number
+        +validate() ValidationResult
+    }
+
+    class FormulaEntry {
+        +string id
+        +number percentage
+        +string item
+        +string notes
+        +validate() boolean
+        +getDisplayText() string
+    }
+
+    class RequestedItem {
+        +string id
+        +string itemName
+        +string sampleId
+        +number quantity
+        +string unitOfMeasure
+        +Priority priority
+        +PurposeTag purposeTag
+        +Date date
+        +RequestStatus status
+        +string orderReference
+        +Date orderDate
+        +string notes
+        +string createdBy
+        +string updatedBy
+        +Date createdAt
+        +Date updatedAt
+        +moveToOrdered(orderRef: string) void
+        +updateStatus(status: RequestStatus) void
+        +validate() ValidationResult
+    }
+
+    class Task {
+        +string id
+        +string title
+        +string description
+        +string[] assignees
+        +Date dueDate
+        +TaskPriority priority
+        +TaskStatus status
+        +TaskComment[] comments
+        +TaskAttachment[] attachments
+        +string[] watchers
+        +SubTask[] subtasks
+        +string createdBy
+        +string updatedBy
+        +Date createdAt
+        +Date updatedAt
+        +addComment(comment: TaskComment) void
+        +addAttachment(attachment: TaskAttachment) void
+        +addWatcher(userId: string) void
+        +updateStatus(status: TaskStatus) void
+        +validate() ValidationResult
+    }
+
+    class TaskComment {
+        +string id
+        +string content
+        +string authorId
+        +Date createdAt
+        +string parentId
+        +isReply() boolean
+        +validate() boolean
+    }
+
+    class TaskAttachment {
+        +string id
+        +string filename
+        +string fileUrl
+        +number fileSize
+        +string mimeType
+        +string uploadedBy
+        +Date uploadedAt
+        +getDisplaySize() string
+        +validate() boolean
+    }
+
+    class SubTask {
+        +string id
+        +string title
+        +boolean completed
+        +string assigneeId
+        +Date createdAt
+        +toggle() void
+        +validate() boolean
+    }
+
+    class AuditLog {
+        +string id
+        +string entityType
+        +string entityId
+        +AuditAction action
+        +Record oldValues
+        +Record newValues
+        +string userId
+        +Date timestamp
+        +string ipAddress
+        +string userAgent
+        +getChangesSummary() string
+        +validate() boolean
+    }
+
+    class SampleRepository {
+        <<interface>>
+        +create(sample: Sample) Promise~Sample~
+        +findById(id: string) Promise~Sample~
+        +findAll(filter: FilterOptions) Promise~Sample[]~
+        +update(id: string, updates: Partial~Sample~) Promise~Sample~
+        +delete(id: string) Promise~void~
+        +getNextSampleNumber() Promise~number~
+        +findBySampleNo(sampleNo: number) Promise~Sample~
+        +findBySupplier(supplierId: string) Promise~Sample[]~
+        +findApproved() Promise~Sample[]~
+        +bulkImport(samples: Partial~Sample~[]) Promise~Sample[]~
+    }
+
+    class SampleService {
+        -SampleRepository repository
+        -AuditService auditService
+        -ValidationService validationService
+        +createSample(data: CreateSampleRequest) Promise~Sample~
+        +updateSample(id: string, data: UpdateSampleRequest) Promise~Sample~
+        +approveSample(sampleId: string, testId: string) Promise~Sample~
+        +importSamples(data: ImportSampleData[]) Promise~ImportResult~
+        +exportSamples(format: ExportFormat, filter: FilterOptions) Promise~Blob~
+        +searchSamples(query: string, filter: FilterOptions) Promise~Sample[]~
+    }
+
+    class TestService {
+        -TestRepository repository
+        -SampleService sampleService
+        -AuditService auditService
+        +createTest(data: CreateTestRequest) Promise~Test~
+        +approveTest(testId: string) Promise~Test~
+        +getTestsBySample(sampleId: string) Promise~Test[]~
+        +getApprovedTest(sampleId: string) Promise~Test~
+        +updateTestResult(testId: string, result: TestResult) Promise~Test~
+    }
+
+    class PurchasingService {
+        -RequestRepository repository
+        -SampleService sampleService
+        -NotificationService notificationService
+        +createRequest(data: CreateRequestRequest) Promise~RequestedItem~
+        +moveToOrdered(requestId: string, orderData: OrderData) Promise~RequestedItem~
+        +getRequestsByStatus(status: RequestStatus) Promise~RequestedItem[]~
+        +bulkUpdateStatus(requestIds: string[], status: RequestStatus) Promise~RequestedItem[]~
+    }
+
+    class SupplierService {
+        -SupplierRepository repository
+        -SampleService sampleService
+        +createSupplier(data: CreateSupplierRequest) Promise~Supplier~
+        +updateSupplier(id: string, data: UpdateSupplierRequest) Promise~Supplier~
+        +toggleScaling(supplierId: string, enabled: boolean) Promise~Supplier~
+        +getSupplierSamples(supplierId: string) Promise~Sample[]~
+    }
+
+    class TaskService {
+        -TaskRepository repository
+        -UserService userService
+        -NotificationService notificationService
+        +createTask(data: CreateTaskRequest) Promise~Task~
+        +updateTask(id: string, data: UpdateTaskRequest) Promise~Task~
+        +addComment(taskId: string, comment: TaskComment) Promise~Task~
+        +assignTask(taskId: string, assigneeIds: string[]) Promise~Task~
+        +updateStatus(taskId: string, status: TaskStatus) Promise~Task~
+    }
+
+    class SyncService {
+        -GoogleDriveAPI driveAPI
+        -ConflictResolver conflictResolver
+        -DatabaseService databaseService
+        +syncToCloud() Promise~SyncResult~
+        +syncFromCloud() Promise~SyncResult~
+        +resolveConflicts(conflicts: DataConflict[]) Promise~void~
+        +getLastSyncTime() Promise~Date~
+        +enableAutoSync(interval: number) void
+        +disableAutoSync() void
+    }
+
+    class AnalyticsService {
+        -SampleRepository sampleRepository
+        -TestRepository testRepository
+        -RequestRepository requestRepository
+        +getKPIs(dateRange: DateRange) Promise~KPIData~
+        +getSampleMetrics(filter: AnalyticsFilter) Promise~SampleMetrics~
+        +getSupplierPerformance(filter: AnalyticsFilter) Promise~SupplierPerformance[]~
+        +getPurchasingMetrics(filter: AnalyticsFilter) Promise~PurchasingMetrics~
+        +generateReport(type: ReportType, filter: AnalyticsFilter) Promise~Report~
+    }
+
+    class AuthService {
+        -UserRepository userRepository
+        -TokenService tokenService
+        +authenticate(email: string, password: string) Promise~AuthResult~
+        +googleSignIn(token: string) Promise~AuthResult~
+        +validateToken(token: string) Promise~User~
+        +refreshToken(refreshToken: string) Promise~AuthResult~
+        +logout(userId: string) Promise~void~
+    }
+
+    class ValidationService {
+        +validateSample(sample: Sample) ValidationResult
+        +validateTest(test: Test) ValidationResult
+        +validateSupplier(supplier: Supplier) ValidationResult
+        +validateRequest(request: RequestedItem) ValidationResult
+        +validateUser(user: User) ValidationResult
+    }
+
+    class AuditService {
+        -AuditRepository repository
+        +logCreate(entityType: string, entity: any, userId: string) Promise~AuditLog~
+        +logUpdate(entityType: string, entityId: string, oldValues: any, newValues: any, userId: string) Promise~AuditLog~
+        +logDelete(entityType: string, entityId: string, userId: string) Promise~AuditLog~
+        +getAuditTrail(entityType: string, entityId: string) Promise~AuditLog[]~
+    }
+
+    class NotificationService {
+        +sendApprovalNotification(sample: Sample, test: Test) Promise~void~
+        +sendOrderNotification(request: RequestedItem) Promise~void~
+        +sendTaskAssignmentNotification(task: Task, assignees: User[]) Promise~void~
+        +sendSyncNotification(result: SyncResult) Promise~void~
+    }
+
+    class DatabaseService {
+        -IndexedDBAdapter adapter
+        +initialize() Promise~void~
+        +transaction(callback: Function) Promise~any~
+        +backup() Promise~Blob~
+        +restore(data: Blob) Promise~void~
+        +clear() Promise~void~
+    }
+
+    %% Relationships
+    User ||--|| UserRole : has
+    UserRole ||--o{ Permission : contains
+    User ||--o{ Sample : creates
+    User ||--o{ Test : performs
+    User ||--o{ Task : assigned
+    User ||--o{ RequestedItem : requests
+
+    Sample ||--|| Supplier : supplied_by
+    Sample ||--|| StorageLocation : stored_at
+    Sample ||--|| SamplePricing : has_pricing
+    Sample ||--o{ Test : tested_by
+    Sample ||--o{ RequestedItem : requested_as
+    SamplePricing ||--o{ ScalingPrice : contains
+
+    Supplier ||--|| ContactInfo : has_contact
+    Supplier ||--|| Address : located_at
+    Supplier ||--o{ Sample : supplies
+
+    Test ||--|| Sample : tests
+    Test ||--o| PersonalUseTest : personal_data
+    Test ||--o| IndustrialTest : industrial_data
+    IndustrialTest ||--o{ FormulaEntry : contains
+
+    Task ||--o{ TaskComment : has_comments
+    Task ||--o{ TaskAttachment : has_attachments
+    Task ||--o{ SubTask : has_subtasks
+    Task ||--o{ User : assigned_to
+
+    SampleService ||--|| SampleRepository : uses
+    TestService ||--|| TestRepository : uses
+    PurchasingService ||--|| RequestRepository : uses
+    SupplierService ||--|| SupplierRepository : uses
+    TaskService ||--|| TaskRepository : uses
+
+    SampleService ||--|| AuditService : logs_to
+    TestService ||--|| AuditService : logs_to
+    PurchasingService ||--|| AuditService : logs_to
+    SupplierService ||--|| AuditService : logs_to
+    TaskService ||--|| AuditService : logs_to
+
+    SyncService ||--|| DatabaseService : syncs
+    AnalyticsService ||--|| SampleRepository : queries
+    AnalyticsService ||--|| TestRepository : queries
+    AnalyticsService ||--|| RequestRepository : queries
+
+    AuthService ||--|| UserRepository : manages
+    ValidationService ||--|| Sample : validates
+    ValidationService ||--|| Test : validates
+    ValidationService ||--|| Supplier : validates
+    ValidationService ||--|| RequestedItem : validates

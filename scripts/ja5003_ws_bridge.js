@@ -1,0 +1,172 @@
+'use strict';
+
+// WebSocket bridge for JA5003Serial (ESM)
+// - Serves a WS that streams raw weight lines to all clients
+// - Accepts simple text commands: TARE, T, Z, SI, P, C, and arbitrary strings
+
+import http from 'node:http';
+import { WebSocketServer } from 'ws';
+import { SerialPort } from 'serialport';
+import { ReadlineParser } from '@serialport/parser-readline';
+import { JA5003Serial } from './ja5003Serial.js';
+
+const HOST = process.env.JA_WS_HOST || '127.0.0.1';
+const PORT = parseInt(process.env.JA_WS_PORT || '8787', 10);
+const FORCE = process.env.JA_FORCE_OPEN === '1';
+
+// Optional pre-flight probe and verbose logging to help diagnose Windows COM access
+try {
+  const list = await SerialPort.list();
+  console.log('[debug] Available ports:', list.map(p => p.path));
+  if (process.env.JA_DEBUG_PROBE === '1') {
+    let path = process.env.JA_PORT || 'COM3';
+    if (process.platform === 'win32' && !path.startsWith('\\\\.\\') && /^COM(\d+)$/i.test(path)) {
+      const n = Number(path.slice(3));
+      if (n >= 10) path = '\\\\.' + '\\' + path; // \\.\COM10 form
+    }
+    const baudRate = Number(process.env.JA_BAUD || 9600);
+    console.log('[debug] Probe opening', path, 'at', baudRate);
+    const testPort = new SerialPort({ path, baudRate, dataBits:8, parity:'none', stopBits:1, autoOpen:false });
+    await new Promise((resolve, reject)=> testPort.open(err => err ? reject(err) : resolve()));
+    console.log('[debug] Port opened (probe), closing');
+    await new Promise(resolve => testPort.close(()=> resolve()));
+  }
+} catch (e) {
+  console.log('[debug] SerialPort preflight error:', e?.message || e);
+}
+
+const srv = http.createServer((req, res)=>{
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('JA5003 WS Bridge running\n');
+});
+
+const wss = new WebSocketServer({ server: srv });
+
+function broadcast(line){
+  const msg = String(line || '').trim(); if (!msg) return;
+  for (const client of wss.clients){
+    try { if (client.readyState === 1) client.send(msg); } catch {}
+  }
+}
+
+async function openJaPort(){
+  const envPath = process.env.JA_PORT || 'COM3';
+  const baudRate = Number(process.env.JA_BAUD || 9600);
+
+  const list = await SerialPort.list();
+  console.log('[debug] Available ports:', list.map(p => p.path));
+
+  let path = envPath;
+  if (process.platform === 'win32' && /^COM(\d+)$/i.test(envPath)) {
+    const n = Number(envPath.slice(3));
+    if (n >= 10) path = '\\\\.' + '\\' + envPath; // \\.\COM10
+  }
+
+  console.log('[debug] Opening', path, 'at', baudRate);
+  const port = new SerialPort({ path, baudRate, dataBits:8, stopBits:1, parity:'none', rtscts:false, xon:false, xoff:false, autoOpen:true });
+
+  port.on('open', () => console.log('[serial] OPENED', path));
+  port.on('error', (err) => console.error('[serial] ERROR:', err?.message || err));
+  port.on('close', () => console.warn('[serial] CLOSED'));
+  port.on('data', (buf) => {
+    const txt = buf.toString('utf8').replace(/\r/g,'\\r').replace(/\n/g,'\\n');
+    console.log('[serial] DATA:', txt, '| HEX:', buf.toString('hex'));
+  });
+
+  // Robust line splitter: handle \r, \n, or \r\n
+  let lineBuf = '';
+  port.on('data', (buf) => {
+    try {
+      const chunk = buf.toString('utf8');
+      lineBuf += chunk;
+      const parts = lineBuf.split(/\r|\n/);
+      lineBuf = parts.pop() || '';
+      for (const line of parts){
+        const trimmed = String(line || '').trim();
+        if (trimmed) broadcast(trimmed);
+      }
+    } catch {}
+  });
+
+  // Optionally assert DTR/RTS
+  try { if (process.env.JA_SET_DTR_RTS !== '0') port.set({ dtr:true, rts:false }, ()=>{}); } catch {}
+
+  // Send enable/continuous sequence on connect
+  try {
+    if (process.env.JA_CONTINUOUS !== '0') {
+      const enableSeq = (process.env.JA_ENABLE_CMDS || 'C,Q,CONT 1,STA 1').split(',').map(s=>s.trim()).filter(Boolean);
+      (async () => { for (const cmd of enableSeq){ try { port.write((cmd.endsWith('\r\n')?cmd:cmd+'\r\n')); } catch {} await new Promise(r=>setTimeout(r,120)); } })();
+    }
+  } catch {}
+
+  // Periodic polling (works even if device isn't in continuous mode)
+  const pollSeq = (process.env.JA_POLL_CMDS || 'SI').split(',').map(s=>s.trim()).filter(Boolean);
+  let pollIdx = 0;
+  const siMs = Number(process.env.JA_SI_MS || 1000);
+  setInterval(()=>{
+    try {
+      if (!port.isOpen || pollSeq.length===0) return;
+      const cmd = pollSeq[pollIdx % pollSeq.length] || 'SI'; pollIdx++;
+      port.write((cmd.endsWith('\r\n')?cmd:cmd+'\r\n'));
+    } catch {}
+  }, Math.max(250, siMs));
+
+  return { port };
+}
+
+let scale;
+let forced = null;
+if (!FORCE){
+  scale = new JA5003Serial();
+  scale.on('open', ({ path, baud }) => console.log(`[open] ${path} @ ${baud}`));
+  scale.on('status', ({ message }) => console.log('[status]', message));
+  scale.on('data', ({ raw }) => broadcast(raw));
+  scale.on('error', ({ error }) => console.error('[error]', error?.message || error));
+  scale.on('close', () => console.log('[close]'));
+}
+
+wss.on('connection', (ws)=>{
+  ws.on('message', (data)=>{
+    const text = String(data || '').trim().toUpperCase();
+    if (FORCE){
+      const port = forced?.port; if (!port || !port.isOpen) return;
+      const write = (s)=> port.write(s.endsWith('\r\n') ? s : s + '\r\n');
+      if (text === 'TARE') {
+      (async ()=>{
+        for (const cmd of (process.env.JA_TARE_CMDS || 'T,Z,TARE,ZERO').split(',').map(s=>s.trim()).filter(Boolean)){
+          write(cmd);
+          await new Promise(r=>setTimeout(r,120));
+        }
+      })();
+        return;
+      }
+      if (text === 'T') return write('T');
+      if (text === 'Z') return write('Z');
+      if (text === 'SI') return write('SI');
+      if (text === 'P') return write('P');
+      if (text === 'C') return write('C');
+      return write(text);
+    } else {
+      if (text === 'TARE') { scale.tare(); return; }
+      if (text === 'T') { scale.send('T'); return; }
+      if (text === 'Z') { scale.send('Z'); return; }
+      if (text === 'SI') { scale.send('SI'); return; }
+      if (text === 'P') { scale.printOnce(); return; }
+      if (text === 'C') { scale.toggleContinuous(); return; }
+      scale.send(text);
+    }
+  });
+});
+
+srv.listen(PORT, HOST, async ()=>{
+  console.log(`JA5003 WS Bridge on ws://${HOST}:${PORT}`);
+  if (FORCE){
+    try { forced = await openJaPort(); } catch (e) { console.error('[boot] failed to open port:', e?.message || e); }
+  } else {
+    await scale.start();
+  }
+});
+
+process.on('SIGINT', async ()=>{ try { if (!FORCE) await scale.stop(); } catch {} process.exit(0); });
+
+

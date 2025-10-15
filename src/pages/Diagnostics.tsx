@@ -24,7 +24,7 @@ export default function Diagnostics() {
     (async () => {
       try {
         // @ts-ignore
-        const db = (await import('@/db')).db;
+        const db = (await import('@/lib/db')).db;
         await db.open();
         setDbOk(true);
       } catch {
@@ -40,7 +40,7 @@ export default function Diagnostics() {
   }, [bridge.connected, bridge.lastMsg]);
 
   return (
-    <div className="p-6 space-y-2">
+    <div className="p-6 space-y-2" data-testid="diag-root">
       <h1 className="text-xl font-semibold">Diagnostics</h1>
       <div>App version: <code>{env.VITE_APP_VERSION}</code></div>
       <div>Online: <b>{String(online)}</b></div>

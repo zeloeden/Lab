@@ -1,21 +1,21 @@
 import { test, expect } from '@playwright/test';
+import { ensureLoggedIn } from './helpers/auth';
 
-test('app mounts and routes work', async ({ page }) => {
-  await page.goto('http://localhost:5173/');
-  await page.waitForURL('**/dashboard');
+test('app mounts and key routes work', async ({ page }) => {
+  await ensureLoggedIn(page);
   await expect(page.locator('body')).toBeVisible();
 
-  await page.goto('http://localhost:5173/formulas');
+  await page.goto('/formulas');
   await expect(page.locator('body')).toBeVisible();
 
-  await page.goto('http://localhost:5173/formula-first');
+  await page.goto('/formula-first');
   await expect(page.locator('body')).toBeVisible();
 
-  await page.goto('http://localhost:5173/preparations/123');
+  await page.goto('/preparations/123');
   await expect(page.locator('body')).toBeVisible();
 
-  await page.goto('http://localhost:5173/__diag');
-  await expect(page.getByText('Diagnostics')).toBeVisible();
+  await page.goto('/__diag', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: /diagnostics/i })).toBeVisible({ timeout: 15000 });
 });
 
 

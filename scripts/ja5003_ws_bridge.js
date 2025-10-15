@@ -101,15 +101,16 @@ async function openJaPort(){
 
   // Periodic polling (works even if device isn't in continuous mode)
   const pollSeq = (process.env.JA_POLL_CMDS || 'SI').split(',').map(s=>s.trim()).filter(Boolean);
+  console.log('[poll] sequence:', pollSeq.join(','));
   let pollIdx = 0;
-  const siMs = Number(process.env.JA_SI_MS || 1000);
+  const siMs = Math.max(250, Number(process.env.JA_SI_MS || 1000));
   setInterval(()=>{
     try {
       if (!port.isOpen || pollSeq.length===0) return;
       const cmd = pollSeq[pollIdx % pollSeq.length] || 'SI'; pollIdx++;
       port.write((cmd.endsWith('\r\n')?cmd:cmd+'\r\n'));
     } catch {}
-  }, Math.max(250, siMs));
+  }, siMs);
 
   return { port };
 }

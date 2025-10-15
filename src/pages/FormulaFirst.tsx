@@ -7,6 +7,7 @@ import { resolveScanToPreparationRoute } from '@/services/scanResolver.client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { parseQR } from '@/lib/parseQR';
 
 
 type Formula = any;
@@ -14,8 +15,9 @@ type Formula = any;
 export default function FormulaFirst(){
   const { user } = useAuth();
   const [sp] = useSearchParams();
-  const code = sp.get('code')?.trim() ?? '';
   const navigate = useNavigate();
+  const raw = (sp.get('code') ?? sp.get('q') ?? '').trim();
+  const code = sp.get('code')?.trim() ?? '';
   const [formulas, setFormulas] = useState<Formula[]>([]);
   const [selected, setSelected] = useState<Formula|null>(null);
   const [batch, setBatch] = useState<{ size:number; unit:'g'|'kg'|'ml'|'L' }|null>(null);
@@ -45,6 +47,19 @@ export default function FormulaFirst(){
     if ((res as any).ok) { window.location.href = (res as any).route; return true; }
     setError((res as any).msg || 'Scan not recognized'); return false;
   }
+
+  // Accept both ?code= and ?q=; if composite, normalize to ?code=
+  useEffect(()=>{
+    if (!raw) return;
+    const parsed = parseQR(raw);
+    console.debug('[formula-first] raw=', raw, 'parsed=', parsed);
+    if (!parsed) return;
+    if (parsed.type === 'prep') { navigate(`/preparations/${parsed.id}`, { replace: true }); return; }
+    const target = parsed.type === 'formulaCode' ? parsed.code : code;
+    if (target && sp.get('code') !== target){
+      navigate(`/formula-first?code=${encodeURIComponent(target)}`, { replace: true });
+    }
+  }, [raw, sp, navigate]);
 
   // Query by code via the in-memory list (no server API present in repo)
   const formulaByCode = useQuery({

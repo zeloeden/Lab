@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -145,6 +146,7 @@ interface EnhancedSample {
 }
 
 export const Samples: React.FC = () => {
+  const [sp] = useSearchParams();
   const { user, hasPermission } = useAuth();
   const canViewCost = (user?.role === 'Admin' || (user as any)?.role === 'Owner' || hasPermission('purchasing','view_costs'));
   
@@ -193,6 +195,12 @@ export const Samples: React.FC = () => {
     const t = setTimeout(()=> setDebouncedSearch(searchTerm), 150);
     return ()=> clearTimeout(t);
   }, [searchTerm]);
+
+  // Seed search from ?code=
+  useEffect(()=>{
+    const code = (sp.get('code') || '').trim();
+    if (code) setSearchTerm(code);
+  }, [sp]);
 
   const norm = (s:string) => s.normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase();
   const esc = (s:string) => s.replace(/[&<>"']/g, (c)=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c] as string));

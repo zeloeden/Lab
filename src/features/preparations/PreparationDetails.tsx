@@ -8,6 +8,8 @@ export function PreparationDetails({ id, layout }:{ id: string; layout: 'drawer'
   const [session, setSession] = useState<any>(null);
   const [steps, setSteps] = useState<any[]>([]);
   const [sample, setSample] = useState<any>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const { user, hasPermission } = useAuth();
   const canViewCost = (user?.role === 'Admin' || (user as any)?.role === 'Owner' || hasPermission('purchasing','view_costs'));
 
@@ -31,7 +33,11 @@ export function PreparationDetails({ id, layout }:{ id: string; layout: 'drawer'
             telemetry.emit('prep.view.costPanel', { preparationSessionId: id, sampleId: found.id });
           }
         } catch {}
-      } catch {}
+      } catch (e) {
+        if (mounted) setLoadError(e);
+      } finally {
+        if (mounted) setLoaded(true);
+      }
     })();
     return ()=>{ mounted = false; };
   }, [id, canViewCost]);
@@ -45,7 +51,12 @@ export function PreparationDetails({ id, layout }:{ id: string; layout: 'drawer'
   const containerClass = layout === 'drawer' ? 'space-y-4' : 'p-4 space-y-4';
 
   if (!id) return <div className={containerClass}>Invalid preparation id</div>;
-  if (!session) return <div className={containerClass}>Loading…</div>;
+  if (!loaded) return <div className={containerClass}>Loading…</div>;
+  if (loadError) {
+    console.error('[prep] failed', loadError);
+    return <div className={containerClass + ' text-red-600'}>Preparation failed to load.</div>;
+  }
+  if (!session) return <div className={containerClass}>Preparation not found.</div>;
 
   return (
     <div className={containerClass}>

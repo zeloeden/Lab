@@ -149,6 +149,10 @@ export const DashboardNew: React.FC = () => {
         navigate(`/formula-first?code=${encodeURIComponent(parsed.code)}`, { replace: true });
         setScanBusy(false); try { scanInputRef.current?.select(); } catch {}; return;
       }
+      if (parsed.type === 'sample') {
+        navigate(`/samples?code=${encodeURIComponent(parsed.id)}`, { replace: true });
+        setScanBusy(false); try { scanInputRef.current?.select(); } catch {}; return;
+      }
     }
     // Fallback to full resolver
     const res = resolveScanToPreparationRoute(code);

@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import Diagnostics from '@/pages/Diagnostics';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { I18nProvider } from '@/contexts/I18nContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
@@ -12,26 +13,26 @@ import { IconProvider } from '@/contexts/IconContext';
 import { useClickSound } from '@/hooks/useClickSound';
 import { Layout } from '@/components/Layout';
 import { DashboardNew as Dashboard } from '@/pages/DashboardNew';
-import { Samples } from '@/pages/Samples';
+const Samples = lazy(() => import('@/pages/Samples'));
 // Test pages removed - all functionality moved to TestManagement
-import { TestManagement } from '@/pages/TestManagement';
-import { Suppliers } from '@/pages/Suppliers';
-import { Purchasing } from '@/pages/Purchasing';
-import { RequestedItems } from '@/pages/RequestedItems';
-import { Settings } from '@/pages/Settings';
-import { Tasks } from '@/pages/Tasks';
-import { Analytics } from '@/pages/Analytics';
-import { Formulas } from '@/pages/Formulas';
-import FinishedGoods from '@/pages/FinishedGoods';
+const TestManagement = lazy(() => import('@/pages/TestManagement'));
+const Suppliers = lazy(() => import('@/pages/Suppliers'));
+const Purchasing = lazy(() => import('@/pages/Purchasing'));
+const RequestedItems = lazy(() => import('@/pages/RequestedItems'));
+const Settings = lazy(() => import('@/pages/Settings'));
+const Tasks = lazy(() => import('@/pages/Tasks'));
+const Analytics = lazy(() => import('@/pages/Analytics'));
+const Formulas = lazy(() => import('@/pages/Formulas'));
+const FinishedGoods = lazy(() => import('@/pages/FinishedGoods'));
 import Index from './pages/Index';
 import NotFound from './pages/NotFound';
 // Legacy label pages replaced by LabelStudio
 import LabelStudio from '@/pages/LabelStudio';
 import { RawMaterials } from '@/pages/RawMaterials';
-import FormulaFirst from '@/pages/FormulaFirst';
+const FormulaFirst = lazy(() => import('@/pages/FormulaFirst'));
 // Removed legacy labels routes
 import { TestPhase2 } from '@/pages/TestPhase2';
-import { PreparationDetail } from '@/pages/PreparationDetail';
+const PreparationDetail = lazy(() => import('@/pages/PreparationDetail'));
 import { AppearanceProvider } from '@/providers/AppearanceProvider';
 import { useEffect } from 'react';
 import { pushOutbox } from '@/lib/sync';
@@ -126,6 +127,7 @@ const App = () => (
                       <DebugErrorBoundary>
                       <ScaleBridgeKeeper />
                       <BootMigrator />
+                      <Suspense fallback={<div className="p-6">Loading…</div>}>
                       <Routes>
                         {/* Redirect root to dashboard */}
                         <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -160,6 +162,11 @@ const App = () => (
                         <Route path="/formulas" element={
                           <Layout>
                             <Formulas />
+                          </Layout>
+                        } />
+                        <Route path="/__diag" element={
+                          <Layout>
+                            <Diagnostics />
                           </Layout>
                         } />
                         <Route path="/formula-first" element={
@@ -224,6 +231,7 @@ const App = () => (
                         
                         <Route path="*" element={<NotFound />} />
                       </Routes>
+                      </Suspense>
                       </DebugErrorBoundary>
                     </BrowserRouter>
                     </ClickSoundInitializer>

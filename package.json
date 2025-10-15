@@ -7,11 +7,15 @@
     "build": "vite build",
     "lint": "eslint --quiet ./src",
     "preview": "vite preview",
+    "e2e": "start-server-and-test dev:safe http://localhost:5173 playwright test",
     "scale:bridge": "node scripts/ja5003_ws_bridge.js",
     "scale:install-bridge": "powershell -ExecutionPolicy Bypass -File scripts/install-scale-bridge.ps1",
     "scale:soft": "powershell -ExecutionPolicy Bypass -File scripts/scale-soft.ps1 -Com COM3 -Baud 9600 -Ms 250",
     "scale:bridge:soft": "cross-env JA_FORCE_OPEN=1 JA_PORT=COM3 JA_BAUD=9600 JA_CONTINUOUS=0 JA_POLL_CMDS=P JA_SI_MS=500 node scripts/ja5003_ws_bridge.js",
-    "scale:bridge:cont": "cross-env JA_FORCE_OPEN=1 JA_PORT=COM3 JA_BAUD=9600 JA_CONTINUOUS=1 JA_POLL_CMDS=SI,S,P JA_SI_MS=1000 node scripts/ja5003_ws_bridge.js"
+    "scale:bridge:cont": "cross-env JA_FORCE_OPEN=1 JA_PORT=COM3 JA_BAUD=9600 JA_CONTINUOUS=1 JA_POLL_CMDS=SI,S,P JA_SI_MS=1000 node scripts/ja5003_ws_bridge.js",
+    "scale:bridge:auto": "cross-env JA_FORCE_OPEN=1 JA_PORT=AUTO JA_BAUD=9600 JA_CONTINUOUS=0 JA_POLL_CMDS=P JA_SI_MS=500 node scripts/ja5003_ws_bridge.js"
+    ,"verify:mount": "node scripts/verify-mount.mjs",
+    "dev:safe": "pnpm run verify:mount && pnpm dev"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -111,6 +115,9 @@
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.0.1",
     "vite": "^5.4.1",
+    "@playwright/test": "^1.48.2",
+    "playwright": "^1.48.2",
+    "start-server-and-test": "^2.0.3",
     "cross-env": "^7.0.3"
   },
   "version": "1.0.0",

@@ -5,6 +5,7 @@ import { useI18n } from '@/contexts/I18nContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Icon } from '@/components/Icon';
+import { prefetchRoute } from '@/lib/prefetchRoute';
 
 interface NavItem {
   key: string;
@@ -169,6 +170,35 @@ export const Navigation: React.FC = () => {
     navigate(path);
   };
 
+  const prefetchForPath = (path: string) => {
+    switch (path) {
+      case '/samples':
+        return prefetchRoute(() => import('@/pages/Samples'));
+      case '/test-management':
+        return prefetchRoute(() => import('@/pages/TestManagement'));
+      case '/formulas':
+        return prefetchRoute(() => import('@/pages/Formulas'));
+      case '/formula-first':
+        return prefetchRoute(() => import('@/pages/FormulaFirst'));
+      case '/suppliers':
+        return prefetchRoute(() => import('@/pages/Suppliers'));
+      case '/purchasing':
+        return prefetchRoute(() => import('@/pages/Purchasing'));
+      case '/requested-items':
+        return prefetchRoute(() => import('@/pages/RequestedItems'));
+      case '/tasks':
+        return prefetchRoute(() => import('@/pages/Tasks'));
+      case '/settings':
+        return prefetchRoute(() => import('@/pages/Settings'));
+      case '/analytics':
+        return prefetchRoute(() => import('@/pages/Analytics'));
+      case '/finished-goods':
+        return prefetchRoute(() => import('@/pages/FinishedGoods'));
+      default:
+        return;
+    }
+  };
+
   return (
     <nav className="w-64 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col">
       {/* Logo */}
@@ -200,6 +230,7 @@ export const Navigation: React.FC = () => {
                 : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
             }`}
             onClick={() => handleNavigation(item.path)}
+            onPointerEnter={() => prefetchForPath(item.path)}
           >
             <div className="flex items-center justify-between w-full">
               <div className="flex items-center space-x-3">

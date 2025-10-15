@@ -5,12 +5,17 @@ import { Wizard as PreparationWizard } from '@/features/preparation/Wizard';
 import { buildStepsDefFromFormula } from '@/lib/data/buildStepsDef';
 import { resolveScanToPreparationRoute } from '@/services/scanResolver.client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 
 
 type Formula = any;
 
 export default function FormulaFirst(){
   const { user } = useAuth();
+  const [sp] = useSearchParams();
+  const code = sp.get('code')?.trim() ?? '';
+  const navigate = useNavigate();
   const [formulas, setFormulas] = useState<Formula[]>([]);
   const [selected, setSelected] = useState<Formula|null>(null);
   const [batch, setBatch] = useState<{ size:number; unit:'g'|'kg'|'ml'|'L' }|null>(null);
@@ -40,6 +45,31 @@ export default function FormulaFirst(){
     if ((res as any).ok) { window.location.href = (res as any).route; return true; }
     setError((res as any).msg || 'Scan not recognized'); return false;
   }
+
+  // Query by code via the in-memory list (no server API present in repo)
+  const formulaByCode = useQuery({
+    queryKey: ['formulaByCode', code],
+    queryFn: async () => {
+      const list = formulas;
+      if (!code) return null as any;
+      // Match by id, internalCode, or compact QR token F=...
+      const kv = /(?:^|;|\s)F[:=]([^;\s]+)/i.exec(code)?.[1];
+      const target = (kv || code).trim();
+      const f = list.find((x:any) => x.id === target || (x.internalCode||'').toLowerCase() === target.toLowerCase());
+      return f ?? null;
+    },
+    enabled: !!code,
+  });
+
+  useEffect(()=>{
+    console.debug('[formula-first]', { code, isLoading: formulaByCode.isLoading, hasData: !!formulaByCode.data });
+    if (!code) return;
+    if (formulaByCode.data && (formulaByCode.data as any).id){
+      // Create/continue a prep via resolver path for consistency
+      const r = resolveScanToPreparationRoute(`F=${(formulaByCode.data as any).id}`);
+      if ((r as any).ok) navigate((r as any).route, { replace: true });
+    }
+  }, [code, formulaByCode.data, formulaByCode.isLoading]);
 
   const header = useMemo(()=>{
     if (!selected) return 'Scan formula QR to begin';

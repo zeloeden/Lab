@@ -32,6 +32,7 @@ import { Test, Sample } from '@/lib/types';
 import { formatTo12Hour } from '@/lib/dateUtils';
 import { useBarcode } from '@/lib/useBarcode';
 import { resolveScanToPreparationRoute } from '@/services/scanResolver.client';
+import { parseQR } from '@/lib/parseQR';
 import { ls } from '@/lib/safeLS';
 
 // Mock recent actions data
@@ -137,6 +138,19 @@ export const DashboardNew: React.FC = () => {
 
   async function handleScannedCode(code: string){
     setScanBusy(true); setScanError(null);
+    const parsed = parseQR(code);
+    console.debug('[qr]', { raw: code, parsed });
+    if (parsed) {
+      if (parsed.type === 'prep') {
+        navigate(`/preparations/${parsed.id}`, { replace: true });
+        setScanBusy(false); try { scanInputRef.current?.select(); } catch {}; return;
+      }
+      if (parsed.type === 'formulaCode') {
+        navigate(`/formula-first?code=${encodeURIComponent(parsed.code)}`, { replace: true });
+        setScanBusy(false); try { scanInputRef.current?.select(); } catch {}; return;
+      }
+    }
+    // Fallback to full resolver
     const res = resolveScanToPreparationRoute(code);
     if (res.ok) navigate(res.route); else setScanError(res.msg);
     setScanBusy(false);

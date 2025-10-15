@@ -24,6 +24,14 @@ export default tseslint.config(
         { allowConstantExport: true },
       ],
       "@typescript-eslint/no-unused-vars": "off",
+      // Prefer lazyNamed for named-export modules instead of React.lazy
+      "no-restricted-syntax": [
+        "warn",
+        {
+          selector: "CallExpression[callee.name='lazy'] > ArrowFunctionExpression",
+          message: "Use lazyNamed() for named exports. React.lazy expects default.",
+        }
+      ],
     },
   }
 );

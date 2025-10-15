@@ -1,4 +1,5 @@
 import React, { lazy, Suspense } from 'react';
+import { lazyNamed } from '@/lib/lazyNamed';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -13,16 +14,16 @@ import { IconProvider } from '@/contexts/IconContext';
 import { useClickSound } from '@/hooks/useClickSound';
 import { Layout } from '@/components/Layout';
 import { DashboardNew as Dashboard } from '@/pages/DashboardNew';
-const Samples = lazy(() => import('@/pages/Samples').then(m => ({ default: m.Samples })));
+const Samples = lazyNamed(() => import('@/pages/Samples'), 'Samples');
 // Test pages removed - all functionality moved to TestManagement
-const TestManagement = lazy(() => import('@/pages/TestManagement').then(m => ({ default: m.TestManagement })));
-const Suppliers = lazy(() => import('@/pages/Suppliers').then(m => ({ default: m.Suppliers })));
-const Purchasing = lazy(() => import('@/pages/Purchasing').then(m => ({ default: m.Purchasing })));
-const RequestedItems = lazy(() => import('@/pages/RequestedItems').then(m => ({ default: m.RequestedItems })));
-const Settings = lazy(() => import('@/pages/Settings').then(m => ({ default: m.Settings })));
-const Tasks = lazy(() => import('@/pages/Tasks').then(m => ({ default: m.Tasks })));
+const TestManagement = lazyNamed(() => import('@/pages/TestManagement'), 'TestManagement');
+const Suppliers = lazyNamed(() => import('@/pages/Suppliers'), 'Suppliers');
+const Purchasing = lazyNamed(() => import('@/pages/Purchasing'), 'Purchasing');
+const RequestedItems = lazyNamed(() => import('@/pages/RequestedItems'), 'RequestedItems');
+const Settings = lazyNamed(() => import('@/pages/Settings'), 'Settings');
+const Tasks = lazyNamed(() => import('@/pages/Tasks'), 'Tasks');
 const Analytics = lazy(() => import('@/pages/Analytics'));
-const Formulas = lazy(() => import('@/pages/Formulas').then(m => ({ default: m.Formulas })));
+const Formulas = lazyNamed(() => import('@/pages/Formulas'), 'Formulas');
 const FinishedGoods = lazy(() => import('@/pages/FinishedGoods'));
 import Index from './pages/Index';
 import NotFound from './pages/NotFound';
@@ -32,7 +33,7 @@ import { RawMaterials } from '@/pages/RawMaterials';
 const FormulaFirst = lazy(() => import('@/pages/FormulaFirst'));
 // Removed legacy labels routes
 import { TestPhase2 } from '@/pages/TestPhase2';
-const PreparationDetail = lazy(() => import('@/pages/PreparationDetail').then(m => ({ default: m.PreparationDetail })));
+const PreparationDetail = lazyNamed(() => import('@/pages/PreparationDetail'), 'PreparationDetail');
 import { AppearanceProvider } from '@/providers/AppearanceProvider';
 import { useEffect } from 'react';
 import { pushOutbox } from '@/lib/sync';
@@ -127,7 +128,7 @@ const App = () => (
                       <DebugErrorBoundary>
                       <ScaleBridgeKeeper />
                       <BootMigrator />
-                      <Suspense fallback={<div className="p-6">Loading…</div>}>
+                      <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading…</div>}>
                       <Routes>
                         {/* Redirect root to dashboard */}
                         <Route path="/" element={<Navigate to="/dashboard" replace />} />

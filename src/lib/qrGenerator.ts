@@ -64,8 +64,8 @@ class QRGenerator {
    * Generate a unique QR code for a sample
    */
   public async generateSampleQR(sampleData: SampleQRData): Promise<QRCodeResult> {
-    // Create unique QR ID based on sample data
-    const qrId = `QR-${sampleData.customIdNo || sampleData.sampleId}-${Date.now()}`;
+    // Compact, stable payload: S=<sampleId>
+    const qrId = `S:${sampleData.sampleId}`;
     
     // Check if QR already exists for this sample
     const existingQR = Array.from(this.qrRegistry.values())
@@ -75,23 +75,8 @@ class QRGenerator {
       return existingQR;
     }
 
-    // Create comprehensive QR data
-    const qrDataObject = {
-      id: sampleData.customIdNo || sampleData.sampleId,
-      sampleNo: sampleData.sampleNo,
-      nameEN: sampleData.itemNameEN,
-      nameAR: sampleData.itemNameAR || '',
-      supplier: sampleData.supplierCode || sampleData.supplierId,
-      batch: sampleData.batchNumber || '',
-      location: sampleData.storageLocation?.rackArea || sampleData.storageLocation?.rackNumber || '',
-      position: sampleData.storageLocation?.position || 0,
-      created: sampleData.createdAt.toISOString(),
-      qrId: qrId,
-      url: `${window.location.origin}/samples/${sampleData.sampleId}`
-    };
-
-    // Convert to compact string format
-    const qrDataString = JSON.stringify(qrDataObject);
+    // Minimal content for scanning; no URLs/verbose JSON
+    const qrDataString = qrId;
 
     try {
       // Generate QR code image

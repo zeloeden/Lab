@@ -127,6 +127,53 @@ export const Formulas: React.FC = () => {
     }
   }, [selectedFormula]);
 
+  // If user types/scans a compact QR payload in search, redirect to Formula First
+  useEffect(() => {
+    try {
+      // Redirect to Formula First when the search looks like a QR payload or identifier
+      if (
+        /^F=.+/i.test(searchTerm) ||
+        /^F:.+/i.test(searchTerm) ||
+        /^\{\s*"?formulaId"?\s*:/i.test(searchTerm) ||
+        /^FORMULA-[A-Z0-9\-]+/i.test(searchTerm) ||
+        /\/formulas\//i.test(searchTerm)
+      ){
+        const q = encodeURIComponent(searchTerm);
+        window.location.href = `/formula-first?q=${q}`;
+        return;
+      }
+      // If a Sample QR payload is scanned in the formulas search, resolve the latest/approved formula by sample and redirect
+      const s = searchTerm.trim();
+      let sampleHint: string | undefined;
+      let ordinalHint: number | undefined;
+      let m: RegExpMatchArray | null = null;
+      if ((m = s.match(/^S=([^;\s]+)(?:;N=(\d+))?/i))) { sampleHint = m[1]; ordinalHint = m[2]? Number(m[2]) : undefined; }
+      else if ((m = s.match(/^S:([^;\s]+)/i))) { sampleHint = m[1]; }
+      else if ((m = s.match(/sample-[A-Za-z0-9\-]+/i))) { sampleHint = m[0]; }
+      // Try plain sample code match (e.g., EXP003)
+      if (!sampleHint && /^[A-Za-z0-9_-]{4,}$/.test(s)) {
+        const matchByCode = samples.find(sm => (sm as any).sampleId?.toLowerCase() === s.toLowerCase());
+        if (matchByCode) sampleHint = matchByCode.id;
+      }
+      if (sampleHint) {
+        // Resolve sample record by id or sampleId
+        const sampleRec = samples.find(sm => sm.id === sampleHint || (sm as any).sampleId === sampleHint);
+        const sid = sampleRec?.id || sampleHint;
+        const family = formulas.filter(f => f.sampleId === sid);
+        if (family.length > 0) {
+          // Prefer Approved, else latest updatedAt/createdAt
+          let chosen = family.find(f => f.status === 'Approved') || family.slice().sort((a:any,b:any)=> new Date(b.updatedAt||b.createdAt||0).getTime() - new Date(a.updatedAt||a.createdAt||0).getTime())[0];
+          // Compute ordinal within that sample family
+          const sortedAsc = family.slice().sort((a:any,b:any)=> new Date(a.createdAt||a.updatedAt||0).getTime() - new Date(b.createdAt||b.updatedAt||0).getTime());
+          const ord = (sortedAsc.findIndex(f=> f.id===chosen.id) + 1) || ordinalHint || 1;
+          const payload = `F=${chosen.id};S=${sampleRec?.sampleId || sid};N=${ord}`;
+          window.location.href = `/formula-first?q=${encodeURIComponent(payload)}`;
+          return;
+        }
+      }
+    } catch {}
+  }, [searchTerm]);
+
   // Prompt to start testing when opening an Untested formula
   useEffect(() => {
     if (isViewDialogOpen && selectedFormula && selectedFormula.status === 'Untested') {
@@ -668,11 +715,11 @@ export const Formulas: React.FC = () => {
   const filteredFormulas = formulas.filter(formula => {
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch = 
-      formula.name.toLowerCase().includes(searchLower) ||
-      formula.id.toLowerCase().includes(searchLower) ||
-      formula.internalCode.toLowerCase().includes(searchLower) ||
-      (formula.externalCode && formula.externalCode.toLowerCase().includes(searchLower)) ||
-      (formula.barcode && formula.barcode.toLowerCase().includes(searchLower)) ||
+      (formula.name || '').toLowerCase().includes(searchLower) ||
+      (formula.id || '').toLowerCase().includes(searchLower) ||
+      (formula.internalCode || '').toLowerCase().includes(searchLower) ||
+      ((formula as any).externalCode ? String((formula as any).externalCode).toLowerCase().includes(searchLower) : false) ||
+      (formula.barcode ? String(formula.barcode).toLowerCase().includes(searchLower) : false) ||
       // Search in QR code searchable text
       getQRCodeSearchableText(formula).includes(searchLower);
     
@@ -1479,6 +1526,25 @@ export const Formulas: React.FC = () => {
                             />
                           </div>
                           <p className="text-xs text-gray-500 mt-2">Scan to view formula details</p>
+                          <div className="mt-2">
+                            <Button size="sm" variant="outline" onClick={()=>{
+                              const input = document.createElement('input');
+                              input.type = 'file'; input.accept = 'image/*';
+                              input.onchange = ()=>{
+                                const file = input.files?.[0]; if (!file) return;
+                                const r = new FileReader();
+                                r.onload = ()=>{
+                                  const dataUrl = r.result as string;
+                                  const updated = formulas.map(f=> f.id===selectedFormula.id ? { ...f, qrCode: dataUrl } : f);
+                                  saveFormulas(updated);
+                                  setSelectedFormula(prev=> prev ? { ...prev, qrCode: dataUrl } : prev);
+                                  toast.success('Formula QR image updated');
+                                };
+                                r.readAsDataURL(file);
+                              };
+                              input.click();
+                            }}>Upload QR</Button>
+                          </div>
                         </div>
                       )}
 

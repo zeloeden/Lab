@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
-import { Plus, Search, Filter, Edit, Trash2, Eye, Package, Clock, CheckCircle, MapPin, Printer, BookOpen, TestTube, Download, Upload } from 'lucide-react';
+import { Plus, Search, Filter, Edit, Trash2, Eye, Package, Clock, CheckCircle, MapPin, Printer, BookOpen, TestTube, Download, QrCode } from 'lucide-react';
 import { testService } from '@/services/testService';
 import { barcodeGenerator } from '@/lib/barcodeUtils';
 import { supplierService } from '@/services/supplierService';
@@ -1350,7 +1350,7 @@ export const Samples: React.FC = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>QR</TableHead>
+                    <TableHead>Sample</TableHead>
                     <TableHead>Source</TableHead>
                     <TableHead>Traceability</TableHead>
                     <TableHead>Formula</TableHead>
@@ -1376,11 +1376,8 @@ export const Samples: React.FC = () => {
                 return (
                   <TableRow key={sample.id} className="cursor-pointer hover:bg-gray-50" onClick={() => handleViewClick(sample)}>
                     <TableCell>
-                      {sample.qrImageBase64 ? (
-                        <img src={sample.qrImageBase64} alt="QR" className="w-10 h-10 bg-white border rounded" />
-                      ) : (
-                        <div className="text-xs text-gray-400">No QR</div>
-                      )}
+                      <div className="font-medium">{sample.itemNameEN || sample.sampleId}</div>
+                      <div className="text-xs text-gray-500">{sample.sampleId}</div>
                     </TableCell>
                     <TableCell><Badge className="bg-gray-100 text-gray-800 border">{(sample as any).source === 'FORMULA' ? 'Formula Sample' : 'Sample'}</Badge></TableCell>
                     <TableCell><Badge className="bg-gray-100 text-gray-800 border">{(sample as any).traceability === 'actual' ? 'Actual' : 'Theoretical'}</Badge></TableCell>
@@ -1448,7 +1445,7 @@ export const Samples: React.FC = () => {
                             <QrCode className="h-4 w-4" />
                           </Button>
                         )}
-                        {/* Upload QR */}
+                        {/* Optional: Upload/replace QR image for this sample */}
                         <Button 
                           variant="ghost" 
                           size="sm"
@@ -1473,7 +1470,7 @@ export const Samples: React.FC = () => {
                           }}
                           title="Upload QR image"
                         >
-                          <Upload className="h-4 w-4" />
+                          <Download className="h-4 w-4" />
                         </Button>
                         <Button 
                           variant="ghost" 

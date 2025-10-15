@@ -43,6 +43,10 @@ export function CodeInput(props: {
   }
 
   function verify(decoded: { text:string; format:string }) {
+    // Accept-any mode: when no required or alt values provided, pass through
+    if (!requiredCodeValue && (!altCodeValues || altCodeValues.length === 0)) {
+      setStatus('ok'); onPass(decoded); return true;
+    }
     const tag = symbologyTag(decoded.format);
     if (!allowed(tag)) { onFail?.(`Symbology not allowed: ${decoded.format}`); setStatus('bad'); return false; }
 

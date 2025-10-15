@@ -62,8 +62,27 @@ class FormulaQRBarcodeGenerator {
    * Generate QR code and barcode for a formula
    */
   public async generateFormulaQRBarcode(formula: Formula): Promise<FormulaQRResult> {
-    // Create unique QR ID
-    const qrId = `FORMULA-QR-${formula.internalCode}-${Date.now()}`;
+    // Compact, production-friendly payload containing SampleId + FormulaId + ordinal index
+    let ordinal = 1;
+    try {
+      const raw = localStorage.getItem('nbslims_formulas');
+      if (raw) {
+        const arr: any[] = JSON.parse(raw);
+        const sameSample = arr.filter(f => f.sampleId === (formula as any).sampleId);
+        if (sameSample.length > 0) {
+          const sorted = sameSample.slice().sort((a,b)=>{
+            const ad = new Date(a.createdAt || 0).getTime();
+            const bd = new Date(b.createdAt || 0).getTime();
+            return ad - bd;
+          });
+          const idx = sorted.findIndex(f => f.id === formula.id);
+          ordinal = idx >= 0 ? (idx + 1) : (sorted.length + 1);
+        }
+      }
+    } catch {}
+
+    const compact = `F=${formula.id};S=${(formula as any).sampleId || ''};N=${ordinal}`;
+    const qrId = compact;
     
     // Check if QR already exists for this formula
     const existingQR = this.qrRegistry.get(formula.id);
@@ -71,20 +90,8 @@ class FormulaQRBarcodeGenerator {
       return existingQR;
     }
 
-    // Create comprehensive QR data
-    const qrDataObject: FormulaQRData = {
-      formulaId: formula.id,
-      internalCode: formula.internalCode,
-      name: formula.name,
-      status: formula.status,
-      totalCost: formula.totalCost,
-      createdAt: formula.createdAt.toISOString(),
-      qrId: qrId,
-      url: `${window.location.origin}/formulas/${formula.id}`
-    };
-
-    // Convert to compact string format
-    const qrDataString = JSON.stringify(qrDataObject);
+    // Minimal content for scanning; no localhost URLs, no verbose JSON
+    const qrDataString = compact;
 
     try {
       // Generate QR code image

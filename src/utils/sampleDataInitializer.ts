@@ -1,5 +1,7 @@
 import { Sample } from '@/lib/types';
 import { Formula } from '@/lib/formula-types';
+import { qrGenerator } from '@/lib/qrGenerator';
+import { formulaQRBarcodeGenerator } from '@/lib/formulaQRBarcode';
 import { v4 as uuidv4 } from 'uuid';
 
 export const initializeSampleData = () => {
@@ -11,142 +13,21 @@ export const initializeSampleData = () => {
     return; // Data already exists
   }
   
-  // Create sample raw materials
+  // Create 4 raw materials (including 3 colors)
   const rawMaterials: Sample[] = [
-    {
-      id: 'raw-1',
-      sampleNo: 1001,
-      itemNameEN: 'Rose Absolute',
-      itemNameAR: 'مطلق الورد',
-      supplierId: 'supplier-1',
-      patchNumber: 'RM-001',
-      status: 'Accepted',
-      approved: true,
-      isRawMaterial: true,
-      storageLocation: { rackNumber: 'A1', position: 1 },
-      pricing: { basePrice: 500, currency: 'USD', scalingPrices: [] },
-      dateOfSample: new Date('2024-01-15'),
-      createdAt: new Date('2024-01-15'),
-      updatedAt: new Date('2024-01-15'),
-      createdBy: 'system',
-      updatedBy: 'system'
-    },
-    {
-      id: 'raw-2',
-      sampleNo: 1002,
-      itemNameEN: 'Jasmine Oil',
-      itemNameAR: 'زيت الياسمين',
-      supplierId: 'supplier-1',
-      patchNumber: 'RM-002',
-      status: 'Accepted',
-      approved: true,
-      isRawMaterial: true,
-      storageLocation: { rackNumber: 'A1', position: 2 },
-      pricing: { basePrice: 450, currency: 'USD', scalingPrices: [] },
-      dateOfSample: new Date('2024-01-16'),
-      createdAt: new Date('2024-01-16'),
-      updatedAt: new Date('2024-01-16'),
-      createdBy: 'system',
-      updatedBy: 'system'
-    },
-    {
-      id: 'raw-3',
-      sampleNo: 1003,
-      itemNameEN: 'Bergamot Essential Oil',
-      itemNameAR: 'زيت البرغموت الأساسي',
-      supplierId: 'supplier-2',
-      patchNumber: 'RM-003',
-      status: 'Accepted',
-      approved: true,
-      isRawMaterial: true,
-      storageLocation: { rackNumber: 'A1', position: 3 },
-      pricing: { basePrice: 120, currency: 'USD', scalingPrices: [] },
-      dateOfSample: new Date('2024-01-17'),
-      createdAt: new Date('2024-01-17'),
-      updatedAt: new Date('2024-01-17'),
-      createdBy: 'system',
-      updatedBy: 'system'
-    },
-    {
-      id: 'raw-4',
-      sampleNo: 1004,
-      itemNameEN: 'Sandalwood Oil',
-      itemNameAR: 'زيت خشب الصندل',
-      supplierId: 'supplier-2',
-      patchNumber: 'RM-004',
-      status: 'Accepted',
-      approved: true,
-      isRawMaterial: true,
-      storageLocation: { rackNumber: 'A1', position: 4 },
-      pricing: { basePrice: 800, currency: 'USD', scalingPrices: [] },
-      dateOfSample: new Date('2024-01-18'),
-      createdAt: new Date('2024-01-18'),
-      updatedAt: new Date('2024-01-18'),
-      createdBy: 'system',
-      updatedBy: 'system'
-    },
-    {
-      id: 'raw-5',
-      sampleNo: 1005,
-      itemNameEN: 'Amber Resin',
-      itemNameAR: 'راتنج العنبر',
-      supplierId: 'supplier-3',
-      patchNumber: 'RM-005',
-      status: 'Accepted',
-      approved: true,
-      isRawMaterial: true,
-      storageLocation: { rackNumber: 'A1', position: 5 },
-      pricing: { basePrice: 200, currency: 'USD', scalingPrices: [] },
-      dateOfSample: new Date('2024-01-19'),
-      createdAt: new Date('2024-01-19'),
-      updatedAt: new Date('2024-01-19'),
-      createdBy: 'system',
-      updatedBy: 'system'
-    },
-    {
-      id: 'raw-6',
-      sampleNo: 1006,
-      itemNameEN: 'Musk Essence',
-      itemNameAR: 'جوهر المسك',
-      supplierId: 'supplier-3',
-      patchNumber: 'RM-006',
-      status: 'Accepted',
-      approved: true,
-      isRawMaterial: true,
-      storageLocation: { rackNumber: 'A2', position: 1 },
-      pricing: { basePrice: 350, currency: 'USD', scalingPrices: [] },
-      dateOfSample: new Date('2024-01-20'),
-      createdAt: new Date('2024-01-20'),
-      updatedAt: new Date('2024-01-20'),
-      createdBy: 'system',
-      updatedBy: 'system'
-    },
-    {
-      id: 'raw-7',
-      sampleNo: 1007,
-      itemNameEN: 'Perfumer\'s Alcohol',
-      itemNameAR: 'كحول العطار',
-      supplierId: 'supplier-1',
-      patchNumber: 'RM-007',
-      status: 'Accepted',
-      approved: true,
-      isRawMaterial: true,
-      storageLocation: { rackNumber: 'A2', position: 2 },
-      pricing: { basePrice: 20, currency: 'USD', scalingPrices: [] },
-      dateOfSample: new Date('2024-01-21'),
-      createdAt: new Date('2024-01-21'),
-      updatedAt: new Date('2024-01-21'),
-      createdBy: 'system',
-      updatedBy: 'system'
-    }
+    { id: 'rm-rose', sampleNo: 1001, itemNameEN: 'Rose Absolute', supplierId: 'supplier-1', patchNumber: 'RM-001', status: 'Accepted', approved: true, isRawMaterial: true, storageLocation: { rackNumber: 'A1', position: 1 }, pricing: { basePrice: 500, currency: 'USD', scalingPrices: [] }, dateOfSample: new Date('2024-01-15'), createdAt: new Date('2024-01-15'), updatedAt: new Date('2024-01-15'), createdBy: 'system', updatedBy: 'system' } as any,
+    { id: 'color-red', sampleNo: 1101, itemNameEN: 'Color Red', supplierId: 'supplier-1', patchNumber: 'CL-RED', status: 'Accepted', approved: true, isRawMaterial: true, storageLocation: { rackNumber: 'C1', position: 1 }, pricing: { basePrice: 5, currency: 'USD', scalingPrices: [] }, dateOfSample: new Date('2024-01-10'), createdAt: new Date('2024-01-10'), updatedAt: new Date('2024-01-10'), createdBy: 'system', updatedBy: 'system', colorCode: '#FF0000', type: 'color' } as any,
+    { id: 'color-blue', sampleNo: 1102, itemNameEN: 'Color Blue', supplierId: 'supplier-1', patchNumber: 'CL-BLU', status: 'Accepted', approved: true, isRawMaterial: true, storageLocation: { rackNumber: 'C1', position: 2 }, pricing: { basePrice: 5, currency: 'USD', scalingPrices: [] }, dateOfSample: new Date('2024-01-11'), createdAt: new Date('2024-01-11'), updatedAt: new Date('2024-01-11'), createdBy: 'system', updatedBy: 'system', colorCode: '#0057FF', type: 'color' } as any,
+    { id: 'color-yellow', sampleNo: 1103, itemNameEN: 'Color Yellow', supplierId: 'supplier-1', patchNumber: 'CL-YLW', status: 'Accepted', approved: true, isRawMaterial: true, storageLocation: { rackNumber: 'C1', position: 3 }, pricing: { basePrice: 5, currency: 'USD', scalingPrices: [] }, dateOfSample: new Date('2024-01-12'), createdAt: new Date('2024-01-12'), updatedAt: new Date('2024-01-12'), createdBy: 'system', updatedBy: 'system', colorCode: '#FFC300', type: 'color' } as any
   ];
   
-  // Create primary samples for formulas
+  // Create 4 primary samples for formulas
   const primarySamples: Sample[] = [
     {
       id: 'sample-1',
       sampleNo: 2001,
       itemNameEN: 'Oriental Night Base',
+      sampleId: 'EXP001',
       itemNameAR: 'قاعدة الليلة الشرقية',
       supplierId: 'supplier-1',
       patchNumber: 'PS-001',
@@ -174,6 +55,7 @@ export const initializeSampleData = () => {
       id: 'sample-2',
       sampleNo: 2002,
       itemNameEN: 'Fresh Citrus Blend',
+      sampleId: 'EXP002',
       itemNameAR: 'مزيج الحمضيات المنعش',
       supplierId: 'supplier-2',
       patchNumber: 'PS-002',
@@ -187,10 +69,46 @@ export const initializeSampleData = () => {
       updatedAt: new Date('2024-01-23'),
       createdBy: 'system',
       updatedBy: 'system'
+    },
+    {
+      id: 'sample-3',
+      sampleNo: 2003,
+      itemNameEN: 'Marine Accord',
+      sampleId: 'EXP003',
+      supplierId: 'supplier-3',
+      patchNumber: 'PS-003',
+      status: 'Accepted',
+      approved: true,
+      isRawMaterial: false,
+      storageLocation: { rackNumber: 'B1', position: 3 },
+      pricing: { basePrice: 80, currency: 'USD', scalingPrices: [] },
+      dateOfSample: new Date('2024-01-24'),
+      createdAt: new Date('2024-01-24'),
+      updatedAt: new Date('2024-01-24'),
+      createdBy: 'system',
+      updatedBy: 'system'
+    },
+    {
+      id: 'sample-4',
+      sampleNo: 2004,
+      itemNameEN: 'Green Herb Note',
+      sampleId: 'EXP004',
+      supplierId: 'supplier-4',
+      patchNumber: 'PS-004',
+      status: 'Accepted',
+      approved: true,
+      isRawMaterial: false,
+      storageLocation: { rackNumber: 'B1', position: 4 },
+      pricing: { basePrice: 60, currency: 'USD', scalingPrices: [] },
+      dateOfSample: new Date('2024-01-25'),
+      createdAt: new Date('2024-01-25'),
+      updatedAt: new Date('2024-01-25'),
+      createdBy: 'system',
+      updatedBy: 'system'
     }
   ];
   
-  // Create formulas
+  // Create 4 formulas
   const formulas: Formula[] = [
     {
       id: 'formula-1',
@@ -302,13 +220,73 @@ export const initializeSampleData = () => {
       createdBy: 'system',
       createdAt: new Date('2024-01-26'),
       updatedAt: new Date('2024-01-26')
+    },
+    {
+      id: 'formula-3',
+      name: 'Ocean Mist EDT',
+      sampleId: 'sample-3',
+      ingredients: [
+        { id: 'ing-13', rawMaterialId: 'sample-3', percentage: 25 },
+        { id: 'ing-14', rawMaterialId: 'rm-rose', percentage: 10 },
+        { id: 'ing-15', rawMaterialId: 'color-blue', percentage: 0.2 },
+        { id: 'ing-16', rawMaterialId: 'color-yellow', percentage: 0.1 },
+        { id: 'ing-17', rawMaterialId: 'color-red', percentage: 0.05 },
+        { id: 'ing-18', rawMaterialId: 'sample-2', percentage: 20 }
+      ],
+      totalPercentage: 100,
+      totalCost: 120,
+      costPerUnit: 1.2,
+      batchSize: 100,
+      batchUnit: 'ml',
+      status: 'Testing',
+      createdBy: 'system', createdAt: new Date('2024-01-27'), updatedAt: new Date('2024-01-27')
+    },
+    {
+      id: 'formula-4',
+      name: 'Herbal Forest EDP',
+      sampleId: 'sample-4',
+      ingredients: [
+        { id: 'ing-19', rawMaterialId: 'sample-4', percentage: 20 },
+        { id: 'ing-20', rawMaterialId: 'rm-rose', percentage: 5 },
+        { id: 'ing-21', rawMaterialId: 'color-yellow', percentage: 0.15 },
+        { id: 'ing-22', rawMaterialId: 'color-blue', percentage: 0.05 }
+      ],
+      totalPercentage: 100,
+      totalCost: 90,
+      costPerUnit: 0.9,
+      batchSize: 100,
+      batchUnit: 'ml',
+      status: 'Draft',
+      createdBy: 'system', createdAt: new Date('2024-01-28'), updatedAt: new Date('2024-01-28')
     }
   ];
   
   // Save to localStorage
+  // Generate compact QRs
   const allSamples = [...rawMaterials, ...primarySamples];
-  localStorage.setItem('nbslims_enhanced_samples', JSON.stringify(allSamples));
-  localStorage.setItem('nbslims_formulas', JSON.stringify(formulas));
+  // Write base data immediately so UI can load without waiting for QR generation
+  try {
+    localStorage.setItem('nbslims_enhanced_samples', JSON.stringify(allSamples));
+    localStorage.setItem('nbslims_formulas', JSON.stringify(formulas));
+    // Clear QR registries to avoid stale entries
+    localStorage.removeItem('nbslims_qr_registry');
+    localStorage.removeItem('nbslims_formula_qr_registry');
+  } catch {}
+  (async ()=>{
+    try {
+      for (let i=0;i<allSamples.length;i++){
+        const s = allSamples[i] as any;
+        const res = await qrGenerator.generateSampleQR({ sampleId: s.sampleId || s.id, sampleNo: s.sampleNo || i+1, itemNameEN: s.itemNameEN || '', supplierId: s.supplierId || '', createdAt: new Date(s.createdAt || Date.now()) });
+        s.qrCode = res.qrId; s.qrImageBase64 = res.qrImageBase64;
+      }
+      for (let i=0;i<formulas.length;i++){
+        const f = formulas[i] as any; const r = await formulaQRBarcodeGenerator.generateFormulaQRBarcode(f as any);
+        f.qrCode = r.qrImageBase64; f.barcode = r.barcode; f.barcodeImage = r.barcodeImage;
+      }
+    } catch {}
+    localStorage.setItem('nbslims_enhanced_samples', JSON.stringify(allSamples));
+    localStorage.setItem('nbslims_formulas', JSON.stringify(formulas));
+  })();
   
   // Trigger update events
   window.dispatchEvent(new CustomEvent('samplesInitialized'));

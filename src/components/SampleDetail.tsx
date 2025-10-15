@@ -424,13 +424,22 @@ export const SampleDetail: React.FC<SampleDetailProps> = ({
       </div>
 
       {/* Barcode/QR Code */}
-      {sample.barcode && (
+      {(sample.barcode || sample.qrImageBase64) && (
         <GlassSection
           title="Barcode/QR Code"
           icon={<SectionIcon icon={QrCode} />}
           variant="neutral"
         >
             <div className="flex items-center gap-6">
+              {sample.qrImageBase64 && (
+                <div className="bg-white p-4 border rounded">
+                  <img 
+                    src={sample.qrImageBase64} 
+                    alt={`QR for sample ${sample.sampleNo}`}
+                    className="w-40 h-40 object-contain"
+                  />
+                </div>
+              )}
               {barcodeImage && (
                 <div className="bg-white p-4 border rounded">
                   <img 
@@ -442,7 +451,7 @@ export const SampleDetail: React.FC<SampleDetailProps> = ({
               )}
               <div className="space-y-2">
                 <p className="text-sm text-gray-600">
-                  Scan this barcode to quickly find this sample
+                  Scan this QR or barcode to quickly find this sample
                 </p>
                 <div className="flex gap-2">
                   <Button

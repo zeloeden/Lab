@@ -120,11 +120,18 @@ export function buildStepsDefFromFormula(selectedFormula: FormulaInput, opts: Bu
       const tolPct = toNumber(val(ing, I.tolerancePct)) ?? 0.5;
       const tolMin = toNumber(val(ing, I.toleranceMinAbsG)) ?? 0.010;
 
-      // Resolve display name from raw material when available
+      // Resolve display name and additional alt codes from inventory (raw material or sample)
       let displayName: string = ingredientId;
       if (rawMaterialId && typeof opts.getRawMaterial === 'function') {
         const rm:any = opts.getRawMaterial(rawMaterialId);
-        displayName = (rm?.itemNameEN || rm?.itemNameAR || rm?.name || rawMaterialId);
+        if (rm) {
+          displayName = (rm?.itemNameEN || rm?.itemNameAR || rm?.name || rawMaterialId);
+          // If the item is a Sample record with a short sampleId/code, accept S:<sampleId> as an alternate code
+          const sampleCode = rm?.sampleId || rm?.id?.startsWith?.('sample-') ? rm?.sampleId : undefined;
+          if (sampleCode) {
+            codeAliases.push(`S:${String(sampleCode)}`);
+          }
+        }
       }
 
       const step = {
@@ -133,7 +140,7 @@ export function buildStepsDefFromFormula(selectedFormula: FormulaInput, opts: Bu
         rawMaterialId,
         displayName,
         code,
-        altCodes: codeAliases,
+        altCodes: Array.from(new Set(codeAliases)),
         allowedSymbologies,
         parser,
         targetQtyG,

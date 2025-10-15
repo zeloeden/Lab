@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
@@ -30,6 +30,9 @@ import { TestingSuggestions } from '@/components/TestingSuggestions';
 import { notificationService } from '@/services/notificationService';
 import { Test, Sample } from '@/lib/types';
 import { formatTo12Hour } from '@/lib/dateUtils';
+import { useBarcode } from '@/lib/useBarcode';
+import { resolveScanToPreparationRoute } from '@/services/scanResolver.client';
+import { ls } from '@/lib/safeLS';
 
 // Mock recent actions data
 const mockRecentActions = {
@@ -66,9 +69,19 @@ export const DashboardNew: React.FC = () => {
   const [overdueTests, setOverdueTests] = useState<Test[]>([]);
   const [nearDueTests, setNearDueTests] = useState<Test[]>([]);
   const [samples, setSamples] = useState<Sample[]>([]);
+  const scanInputRef = useRef<HTMLInputElement>(null);
+  const [scanBusy, setScanBusy] = useState(false);
+  const [scanError, setScanError] = useState<string|null>(null);
 
   useEffect(() => {
     loadDueTests();
+    // Debug probe for localStorage parsing
+    try {
+      const cnt = ls<any[]>('nbslims_formulas', []).length;
+      console.log('[dbg] formulas count', cnt);
+    } catch (e) {
+      console.error('[dbg] formulas parse failed', e);
+    }
     const interval = setInterval(loadDueTests, 60000); // Refresh every minute
     
     // Listen for all data updates
@@ -121,6 +134,15 @@ export const DashboardNew: React.FC = () => {
       setIsRefreshing(false);
     }, 1500);
   };
+
+  async function handleScannedCode(code: string){
+    setScanBusy(true); setScanError(null);
+    const res = resolveScanToPreparationRoute(code);
+    if (res.ok) navigate(res.route); else setScanError(res.msg);
+    setScanBusy(false);
+    try { scanInputRef.current?.select(); } catch {}
+  }
+  useBarcode({ onScan: handleScannedCode, target: scanInputRef.current ?? document });
 
   const getActionIcon = (type: string) => {
     switch (type) {
@@ -252,14 +274,30 @@ export const DashboardNew: React.FC = () => {
           <h1 className="text-3xl font-bold">Dashboard</h1>
           <p className="text-gray-600">Recent activities and system overview</p>
         </div>
-        <Button 
-          variant="outline" 
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <input
+            ref={scanInputRef}
+            placeholder="Scan formula QR / barcode…"
+            className="w-72 rounded border px-3 py-2"
+            onKeyDown={(e)=>{
+              if (e.key === 'Enter'){
+                e.preventDefault();
+                const clean = (e.currentTarget.value||'').replace(/[\r\n\t]/g,'').trim();
+                if (clean) handleScannedCode(clean);
+              }
+            }}
+          />
+          {scanBusy && <span className="text-sm text-gray-500">Waiting…</span>}
+          {scanError && <span className="text-sm text-red-600">{scanError}</span>}
+          <Button 
+            variant="outline" 
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}

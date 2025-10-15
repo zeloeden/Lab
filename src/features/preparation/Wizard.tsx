@@ -12,6 +12,7 @@ export function Wizard(props: {
   stepsDef: Array<{
     sequence: number;
     ingredientId: string;
+    displayName?: string;
     code: string;
     altCodes?: string[];
     allowedSymbologies?: ('any'|'qr'|'code128'|'ean'|'datamatrix')[];
@@ -29,6 +30,7 @@ export function Wizard(props: {
     id: crypto.randomUUID(),
     sequence: s.sequence,
     ingredientId: s.ingredientId,
+    displayName: s.displayName || s.ingredientId,
     requiredCodeValue: s.code,
     altCodeValues: s.altCodes,
     allowedSymbologies: s.allowedSymbologies ?? ['any'],
@@ -70,7 +72,7 @@ export function Wizard(props: {
 
       {step && (
         <div className="p-4 rounded-2xl border space-y-4">
-          <div>Step {step.sequence}: <b>{step.ingredientId}</b></div>
+          <div>Step {step.sequence}: <b>{step.displayName || step.ingredientId}</b></div>
 
           <CodeInput
             requiredCodeValue={step.requiredCodeValue}

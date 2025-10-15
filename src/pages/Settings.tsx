@@ -107,6 +107,16 @@ export function Settings() {
     weeklyReport: true
   });
 
+  const handleSeed = async () => {
+    if (!window.confirm('This will clear current local Samples/Formulas and load seed data. Continue?')) return;
+    try {
+      localStorage.setItem('nbslims_seed_now','true');
+      window.location.reload();
+    } catch (e) {
+      toast.error('Failed to trigger seed');
+    }
+  };
+
   const handleProfileUpdate = () => {
     updateUserProfile(profileData);
     toast.success('Profile updated successfully');
@@ -609,6 +619,7 @@ export function Settings() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Notification Preferences - Left Column */}
             <div className="space-y-6">
+            {/* Seed card removed per request */}
               {/* Scale Settings */}
               {(() => {
                 const { supported, connected, reading, connect, tare, ping, reconnect, setSerialOptions, mode, setMode, wsUrl, setWsUrl, pickJA5003 } = useScale();

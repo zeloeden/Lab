@@ -28,6 +28,7 @@ import NotFound from './pages/NotFound';
 // Legacy label pages replaced by LabelStudio
 import LabelStudio from '@/pages/LabelStudio';
 import { RawMaterials } from '@/pages/RawMaterials';
+import FormulaFirst from '@/pages/FormulaFirst';
 // Removed legacy labels routes
 import { TestPhase2 } from '@/pages/TestPhase2';
 import { PreparationDetail } from '@/pages/PreparationDetail';
@@ -35,6 +36,8 @@ import { AppearanceProvider } from '@/providers/AppearanceProvider';
 import { useEffect } from 'react';
 import { pushOutbox } from '@/lib/sync';
 import { useEffect as useReactEffect } from 'react';
+import { useScale } from '@/lib/scale/useScale';
+import { DebugErrorBoundary } from '@/components/DebugErrorBoundary';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -120,6 +123,8 @@ const App = () => (
                     <ClickSoundInitializer>
                     <Toaster />
                     <BrowserRouter>
+                      <DebugErrorBoundary>
+                      <ScaleBridgeKeeper />
                       <BootMigrator />
                       <Routes>
                         {/* Redirect root to dashboard */}
@@ -155,6 +160,11 @@ const App = () => (
                         <Route path="/formulas" element={
                           <Layout>
                             <Formulas />
+                          </Layout>
+                        } />
+                        <Route path="/formula-first" element={
+                          <Layout>
+                            <FormulaFirst />
                           </Layout>
                         } />
                         <Route path="/raw-materials" element={
@@ -214,6 +224,7 @@ const App = () => (
                         
                         <Route path="*" element={<NotFound />} />
                       </Routes>
+                      </DebugErrorBoundary>
                     </BrowserRouter>
                     </ClickSoundInitializer>
                     </RootOutbox>
@@ -241,6 +252,23 @@ function RootOutbox({ children }:{ children: React.ReactNode }){
     return () => clearInterval(id);
   }, []);
   return <>{children}</>;
+}
+
+// Keeps the Bridge WebSocket connected globally so navigation doesn’t drop it
+function ScaleBridgeKeeper(){
+  const { mode, setMode, autoConnect, connected, wsUrl } = useScale();
+  useEffect(()=>{
+    // Do not force bridge mode globally; respect user's last choice
+    // When user selects bridge in scale settings, the keeper will maintain it
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
+
+  useEffect(()=>{
+    (async ()=>{
+      try { if (mode === 'bridge' && !connected) await autoConnect(); } catch {}
+    })();
+  }, [connected, wsUrl, autoConnect, mode]);
+  return null;
 }
 
 function BootMigrator(){

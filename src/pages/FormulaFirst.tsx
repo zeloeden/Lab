@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { CodeInput } from '@/components/CodeInput';
 import { PrepBatchDialog } from '@/features/preparation/PrepBatchDialog';
 import { Wizard as PreparationWizard } from '@/features/preparation/Wizard';
@@ -8,15 +8,17 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { parseQR } from '@/lib/parseQR';
+import { db } from '@/lib/db';
 
 
 type Formula = any;
 
 export default function FormulaFirst(){
   const { user } = useAuth();
-  const [sp] = useSearchParams();
+  const [sp, setSp] = useSearchParams();
   const navigate = useNavigate();
   const raw = (sp.get('code') ?? sp.get('q') ?? '').trim();
+  const auto = sp.get('auto') || '';
   const code = sp.get('code')?.trim() ?? '';
   const [formulas, setFormulas] = useState<Formula[]>([]);
   const [selected, setSelected] = useState<Formula|null>(null);
@@ -54,7 +56,12 @@ export default function FormulaFirst(){
     const parsed = parseQR(raw);
     console.debug('[formula-first] raw=', raw, 'parsed=', parsed);
     if (!parsed) return;
-    if (parsed.type === 'prep') { navigate(`/preparations/${parsed.id}`, { replace: true }); return; }
+    if (parsed.type === 'prep') {
+      const f = parsed.extras?.formulaCode;
+      const suffix = f ? `?f=${encodeURIComponent(f)}` : '';
+      navigate(`/preparations/${parsed.id}${suffix}`, { replace: true });
+      return;
+    }
     const target = parsed.type === 'formulaCode' ? parsed.code : code;
     if (target && sp.get('code') !== target){
       navigate(`/formula-first?code=${encodeURIComponent(target)}`, { replace: true });
@@ -76,15 +83,57 @@ export default function FormulaFirst(){
     enabled: !!code,
   });
 
+  const didAutoRef = useRef(false);
   useEffect(()=>{
     console.debug('[formula-first]', { code, isLoading: formulaByCode.isLoading, hasData: !!formulaByCode.data });
     if (!code) return;
     if (formulaByCode.data && (formulaByCode.data as any).id){
-      // Create/continue a prep via resolver path for consistency
-      const r = resolveScanToPreparationRoute(`F=${(formulaByCode.data as any).id}`);
-      if ((r as any).ok) navigate((r as any).route, { replace: true });
+      if (auto === 'start' && !didAutoRef.current){
+        didAutoRef.current = true;
+        // Auto-start: create prep session and navigate directly
+        const defaultAmount = Number(sp.get('amount') ?? 100);
+        const defaultUnit   = (sp.get('unit') ?? 'g') as 'g'|'kg'|'ml'|'L';
+        
+        (async () => {
+          try {
+            const rmMap = new Map<string, any>();
+            try {
+              const raw = localStorage.getItem('nbslims_raw_materials');
+              if (raw) JSON.parse(raw).forEach((rm: any)=> rmMap.set(rm.id, rm));
+            } catch {}
+            const getRawMaterial = (id: string) => rmMap.get(id);
+            const steps = buildStepsDefFromFormula(formulaByCode.data as any, { getRawMaterial, overrideBatch: { size: defaultAmount, unit: defaultUnit } });
+            
+            // Create session directly
+            const sessionId = crypto.randomUUID();
+            const attemptNo = (await db.sessions.where('formulaId').equals((formulaByCode.data as any).id).count()) + 1;
+            await db.sessions.add({ 
+              id: sessionId, 
+              formulaId: (formulaByCode.data as any).id, 
+              attemptNo, 
+              status: 'in_progress', 
+              operator: user?.name || 'operator', 
+              startedAt: Date.now() 
+            });
+            
+            // Navigate to prep detail
+            sp.delete('auto'); 
+            navigate(`/preparations/${sessionId}`, { replace: true });
+          } catch (e: any) {
+            setError(e?.message || 'Failed to start preparation');
+            sp.delete('auto'); setSp(sp, { replace: true });
+          }
+        })();
+      } else if (!auto) {
+        // Legacy behavior: navigate to existing/continued preparation if any
+        const r = resolveScanToPreparationRoute(`F=${(formulaByCode.data as any).id}`);
+        if ((r as any).ok) navigate((r as any).route, { replace: true });
+      }
     }
-  }, [code, formulaByCode.data, formulaByCode.isLoading]);
+  }, [code, formulaByCode.data, formulaByCode.isLoading, auto]);
+  if (code && formulaByCode.isSuccess && !formulaByCode.data) {
+    return <div className="p-6 text-red-600">Formula not found for code: <code>{code}</code></div>;
+  }
 
   const header = useMemo(()=>{
     if (!selected) return 'Scan formula QR to begin';

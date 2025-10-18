@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { db } from '@/lib/db';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,6 +13,8 @@ export function PreparationDetails({ id, layout }:{ id: string; layout: 'drawer'
   const [loadError, setLoadError] = useState<unknown>(null);
   const { user, hasPermission } = useAuth();
   const canViewCost = (user?.role === 'Admin' || (user as any)?.role === 'Owner' || hasPermission('purchasing','view_costs'));
+  const [sp] = useSearchParams();
+  const navigate = useNavigate();
 
   useEffect(()=>{
     let mounted = true;
@@ -56,7 +59,15 @@ export function PreparationDetails({ id, layout }:{ id: string; layout: 'drawer'
     console.error('[prep] failed', loadError);
     return <div className={containerClass + ' text-red-600'}>Preparation failed to load.</div>;
   }
-  if (!session) return <div className={containerClass}>Preparation not found.</div>;
+  if (!session) {
+    const fallbackCode = (sp.get('f') || '').trim();
+    if (fallbackCode) {
+      console.warn('[prep] not found, falling back to formula-first with auto-start', { fallbackCode });
+      navigate(`/formula-first?code=${encodeURIComponent(fallbackCode)}&auto=start&from=prep-fallback`, { replace: true });
+      return null;
+    }
+    return <div className={containerClass}>Preparation not found.</div>;
+  }
 
   return (
     <div className={containerClass}>

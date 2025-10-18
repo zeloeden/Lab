@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { normalizeForSearch } from '@/lib/qr';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -51,7 +52,8 @@ export const Formulas: React.FC = () => {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [rawMaterials, setRawMaterials] = useState<RawMaterial[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [rawSearch, setRawSearch] = useState('');
+  const search = useMemo(() => normalizeForSearch(rawSearch), [rawSearch]);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sort, setSort] = useState<string>('updatedAt:desc');
   const [page, setPage] = useState<number>(1);
@@ -132,18 +134,18 @@ export const Formulas: React.FC = () => {
     try {
       // Redirect to Formula First when the search looks like a QR payload or identifier
       if (
-        /^F=.+/i.test(searchTerm) ||
-        /^F:.+/i.test(searchTerm) ||
-        /^\{\s*"?formulaId"?\s*:/i.test(searchTerm) ||
-        /^FORMULA-[A-Z0-9\-]+/i.test(searchTerm) ||
-        /\/formulas\//i.test(searchTerm)
+        /^F=.+/i.test(rawSearch) ||
+        /^F:.+/i.test(rawSearch) ||
+        /^\{\s*"?formulaId"?\s*:/i.test(rawSearch) ||
+        /^FORMULA-[A-Z0-9\-]+/i.test(rawSearch) ||
+        /\/formulas\//i.test(rawSearch)
       ){
-        const q = encodeURIComponent(searchTerm);
+        const q = encodeURIComponent(rawSearch);
         window.location.href = `/formula-first?q=${q}`;
         return;
       }
       // If a Sample QR payload is scanned in the formulas search, resolve the latest/approved formula by sample and redirect
-      const s = searchTerm.trim();
+      const s = rawSearch.trim();
       let sampleHint: string | undefined;
       let ordinalHint: number | undefined;
       let m: RegExpMatchArray | null = null;
@@ -172,7 +174,7 @@ export const Formulas: React.FC = () => {
         }
       }
     } catch {}
-  }, [searchTerm]);
+  }, [rawSearch]);
 
   // Prompt to start testing when opening an Untested formula
   useEffect(() => {
@@ -713,7 +715,7 @@ export const Formulas: React.FC = () => {
   };
 
   const filteredFormulas = formulas.filter(formula => {
-    const searchLower = searchTerm.toLowerCase();
+    const searchLower = search.toLowerCase();
     const matchesSearch = 
       (formula.name || '').toLowerCase().includes(searchLower) ||
       (formula.id || '').toLowerCase().includes(searchLower) ||
@@ -851,8 +853,8 @@ export const Formulas: React.FC = () => {
       </div>
 
       <ListHeader
-        q={searchTerm}
-        onQChange={setSearchTerm}
+        q={rawSearch}
+        onQChange={setRawSearch}
         status={statusFilter}
         onStatusChange={(v) => setStatusFilter(v)}
         sort={sort}
@@ -888,7 +890,7 @@ export const Formulas: React.FC = () => {
             <TableBody>
               {filteredFormulas.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize).map(formula => {
                 const sample = samples.find(s => s.id === formula.sampleId);
-                const searchLower = searchTerm.toLowerCase();
+                const searchLower = search.toLowerCase();
                 const isQRMatch = formula.qrCode && getQRCodeSearchableText(formula).includes(searchLower);
                 const isBarcodeMatch = formula.barcode && formula.barcode.toLowerCase().includes(searchLower);
                 
@@ -897,7 +899,7 @@ export const Formulas: React.FC = () => {
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
                         <span>{formula.name}</span>
-                        {searchTerm && (isQRMatch || isBarcodeMatch) && (
+                        {rawSearch && (isQRMatch || isBarcodeMatch) && (
                           <Badge variant="outline" className="text-xs">
                             {isQRMatch && isBarcodeMatch ? 'QR+Barcode' : isQRMatch ? 'QR' : 'Barcode'}
                           </Badge>

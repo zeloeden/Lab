@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
+import { normalizeForSearch } from '@/lib/qr';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -154,7 +155,8 @@ export const Samples: React.FC = () => {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [companies, setCompanies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [rawQuery, setRawQuery] = useState('');
+  const query = useMemo(() => normalizeForSearch(rawQuery), [rawQuery]);
   const [statusFilter, setStatusFilter] = useState<'all'|'Untested'|'Tested'>('Untested');
   const [sourceFilter, setSourceFilter] = useState<'all'|'FORMULA'|'SAMPLE'>('all');
   const [locationFilter, setLocationFilter] = useState<string>('all');
@@ -169,7 +171,7 @@ export const Samples: React.FC = () => {
   const [prepSheetId, setPrepSheetId] = useState<string | null>(null);
   const [sortField, setSortField] = useState<'createdAt'|'id'>('createdAt');
   const [sortDir, setSortDir] = useState<'asc'|'desc'>('desc');
-  const [debouncedSearch, setDebouncedSearch] = useState(searchTerm);
+  const [debouncedSearch, setDebouncedSearch] = useState(query);
 
   // Persist/restore UI state
   useEffect(()=>{
@@ -192,14 +194,14 @@ export const Samples: React.FC = () => {
 
   // Debounce search input
   useEffect(()=>{
-    const t = setTimeout(()=> setDebouncedSearch(searchTerm), 150);
+    const t = setTimeout(()=> setDebouncedSearch(query), 150);
     return ()=> clearTimeout(t);
-  }, [searchTerm]);
+  }, [query]);
 
-  // Seed search from ?code=
+  // Seed search from ?code= or ?search=
   useEffect(()=>{
-    const code = (sp.get('code') || '').trim();
-    if (code) setSearchTerm(code);
+    const code = (sp.get('code') || sp.get('search') || '').trim();
+    if (code) setRawQuery(code);
   }, [sp]);
 
   const norm = (s:string) => s.normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase();
@@ -1275,8 +1277,9 @@ export const Samples: React.FC = () => {
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <Input
                       placeholder="Search by Sample Code, Formula Code, Lot, notes..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
+                      value={rawQuery}
+                      onChange={(e) => setRawQuery(e.target.value)}
+                      onFocus={() => import('@/pages/FormulaFirst')}
                       className="pl-10"
                     />
                   </div>

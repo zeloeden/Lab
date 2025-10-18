@@ -3,15 +3,22 @@
 // WebSocket bridge for JA5003Serial (ESM)
 // - Serves a WS that streams raw weight lines to all clients
 // - Accepts simple text commands: TARE, T, Z, SI, P, C, and arbitrary strings
+// - Single instance guard with lock file
+// - Auto-increment port on EADDRINUSE
+// - Ping/pong heartbeat for WS clients
+// - Stream health monitoring
 
 import http from 'node:http';
 import { WebSocketServer } from 'ws';
 import { SerialPort } from 'serialport';
 import { ReadlineParser } from '@serialport/parser-readline';
 import { JA5003Serial } from './ja5003Serial.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
 
 const HOST = process.env.JA_WS_HOST || '127.0.0.1';
-const PORT = parseInt(process.env.JA_WS_PORT || '8787', 10);
+let PORT = parseInt(process.env.JA_WS_PORT || '8787', 10);
 const FORCE = process.env.JA_FORCE_OPEN === '1';
 
 // Simple CLI arg parsing: --port=, --baud=
@@ -20,6 +27,43 @@ const argvMap = Object.fromEntries(argv.filter(a=>/^--\w+=/.test(a)).map(a=>{
   const [k,v] = a.replace(/^--/,'').split('=');
   return [k.toLowerCase(), v];
 }));
+
+// Single instance guard with lock file
+const LOCK_FILE = path.join(os.tmpdir(), 'ja5003_ws_bridge.lock');
+function checkSingleInstance(){
+  try {
+    if (fs.existsSync(LOCK_FILE)){
+      const lock = JSON.parse(fs.readFileSync(LOCK_FILE, 'utf8'));
+      console.log(`[lock] Found existing instance at PID ${lock.pid}, port ${lock.port}`);
+      // Check if process is still running
+      try {
+        process.kill(lock.pid, 0); // Signal 0 checks existence
+        console.log(`[lock] Instance already running. Connect to ws://${lock.host||'127.0.0.1'}:${lock.port}`);
+        return lock; // Instance is running
+      } catch {
+        console.log('[lock] Stale lock file, removing');
+        fs.unlinkSync(LOCK_FILE);
+      }
+    }
+  } catch (e) {
+    console.log('[lock] Error checking instance:', e?.message);
+  }
+  return null;
+}
+
+function writeLockFile(port){
+  fs.writeFileSync(LOCK_FILE, JSON.stringify({ pid: process.pid, port, host: HOST, timestamp: Date.now() }));
+}
+
+function removeLockFile(){
+  try { fs.unlinkSync(LOCK_FILE); } catch {}
+}
+
+const existingInstance = checkSingleInstance();
+if (existingInstance && !process.env.JA_ALLOW_MULTIPLE) {
+  console.log('[lock] Exiting to avoid duplicate instances. Set JA_ALLOW_MULTIPLE=1 to override.');
+  process.exit(0);
+}
 
 // Optional pre-flight probe and verbose logging to help diagnose Windows COM access
 try {
@@ -49,8 +93,10 @@ const srv = http.createServer((req, res)=>{
 
 const wss = new WebSocketServer({ server: srv });
 
+let lastPacketAt = Date.now();
 function broadcast(line){
   const msg = String(line || '').trim(); if (!msg) return;
+  lastPacketAt = Date.now();
   for (const client of wss.clients){
     try { if (client.readyState === 1) client.send(msg); } catch {}
   }
@@ -227,8 +273,15 @@ if (!FORCE){
 }
 
 wss.on('connection', (ws)=>{
+  // Ping/pong heartbeat
+  let pongReceived = true;
+  ws.isAlive = true;
+  ws.on('pong', ()=> { ws.isAlive = true; pongReceived = true; });
+  
   ws.on('message', (data)=>{
     const text = String(data || '').trim().toUpperCase();
+    if (text === 'PING') { try { ws.send('PONG'); } catch {} return; }
+    
     if (FORCE){
       const port = forced?.port; if (!port || !port.isOpen) return;
       const write = (s)=> port.write(s.endsWith('\r\n') ? s : s + '\r\n');
@@ -259,15 +312,100 @@ wss.on('connection', (ws)=>{
   });
 });
 
-srv.listen(PORT, HOST, async ()=>{
-  console.log(`JA5003 WS Bridge on ws://${HOST}:${PORT}`);
+// Ping/pong interval to detect dead connections
+const heartbeatInterval = setInterval(()=>{
+  wss.clients.forEach((ws)=>{
+    if (ws.isAlive === false) {
+      console.log('[ws] terminating dead connection');
+      return ws.terminate();
+    }
+    ws.isAlive = false;
+    try { ws.ping(); } catch {}
+  });
+}, 15000);
+
+wss.on('close', ()=> { clearInterval(heartbeatInterval); });
+
+// Try to listen with port auto-increment on EADDRINUSE
+async function tryListen(startPort, maxRetries=10){
+  let port = startPort;
+  let attempts = 0;
+  
+  while (attempts <= maxRetries) {
+    try {
+      await new Promise((resolve, reject) => {
+        const onError = (err) => {
+          srv.removeListener('listening', onListening);
+          if (err.code === 'EADDRINUSE') {
+            console.log(`[listen] Port ${port} in use, trying ${port + 1}`);
+            reject(err);
+          } else {
+            reject(err);
+          }
+        };
+        
+        const onListening = () => {
+          srv.removeListener('error', onError);
+          resolve();
+        };
+        
+        srv.once('error', onError);
+        srv.once('listening', onListening);
+        srv.listen(port, HOST);
+      });
+      
+      // Success!
+      return port;
+    } catch (err) {
+      if (err.code === 'EADDRINUSE' && attempts < maxRetries) {
+        port++;
+        attempts++;
+        await new Promise(r => setTimeout(r, 100));
+      } else {
+        throw err;
+      }
+    }
+  }
+  
+  throw new Error(`Failed to bind after ${maxRetries + 1} attempts (ports ${startPort}-${port})`);
+}
+
+try {
+  PORT = await tryListen(PORT);
+  console.log(`✓ JA5003 WS Bridge on ws://${HOST}:${PORT}`);
+  writeLockFile(PORT);
+  
   if (FORCE){
     try { forced = await openJaPort(); } catch (e) { console.error('[boot] failed to open port:', e?.message || e); }
   } else {
     await scale.start();
   }
-});
 
-process.on('SIGINT', async ()=>{ try { if (!FORCE) await scale.stop(); } catch {} process.exit(0); });
+  // Stream health monitoring (warn if no data in 10s while in CONTINUOUS mode)
+  if (process.env.JA_CONTINUOUS !== '0') {
+    setInterval(()=>{
+      const age = Date.now() - lastPacketAt;
+      if (age > 10000){
+        console.warn(`[stream-health] No packet in ${(age/1000).toFixed(1)}s (CONTINUOUS mode)`);
+      }
+    }, 10000);
+  }
+} catch (e) {
+  console.error('[listen] Failed to bind:', e?.message || e);
+  removeLockFile();
+  process.exit(1);
+}
+
+process.on('SIGINT', async ()=>{ 
+  console.log('\n[shutdown] Cleaning up...');
+  removeLockFile(); 
+  try { if (!FORCE) await scale.stop(); } catch {} 
+  process.exit(0); 
+});
+process.on('SIGTERM', async ()=>{ 
+  removeLockFile(); 
+  try { if (!FORCE) await scale.stop(); } catch {} 
+  process.exit(0); 
+});
 
 

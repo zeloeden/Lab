@@ -10,6 +10,21 @@ import { LogOut, Sun, Moon, Monitor } from 'lucide-react';
 import { useScale } from '@/lib/scale/useScale';
 import { useNavigate } from 'react-router-dom';
 
+// Separate component for scale status to ensure proper hook usage
+const ScaleStatusChip: React.FC = () => {
+  const { connected, reading, mode } = useScale();
+  const color = connected ? 'bg-green-500' : 'bg-red-500';
+  const label = connected ? (reading?.raw ? `${reading.valueG.toFixed(3)} g` : 'Connected') : 'No scale';
+  
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      <span className={`inline-block h-2 w-2 rounded-full ${color}`} />
+      <span className="text-gray-600 dark:text-gray-300">{label}</span>
+      <span className="text-[10px] text-gray-400">{mode==='bridge' ? 'WS' : 'Serial'}</span>
+    </div>
+  );
+};
+
 export const Header: React.FC = () => {
   const { user, logout } = useAuth();
   const { theme, setTheme, actualTheme } = useTheme();
@@ -55,18 +70,7 @@ export const Header: React.FC = () => {
         
         <div className="flex items-center space-x-4">
           {/* Scale status chip */}
-          {(() => {
-            const { connected, reading, mode } = useScale();
-            const color = connected ? 'bg-green-500' : 'bg-red-500';
-            const label = connected ? (reading?.raw ? `${reading.valueG.toFixed(3)} g` : 'Connected') : 'No scale';
-            return (
-              <div className="flex items-center gap-2 text-xs">
-                <span className={`inline-block h-2 w-2 rounded-full ${color}`} />
-                <span className="text-gray-600 dark:text-gray-300">{label}</span>
-                <span className="text-[10px] text-gray-400">{mode==='bridge' ? 'WS' : 'Serial'}</span>
-              </div>
-            );
-          })()}
+          <ScaleStatusChip />
 
           {/* Theme Toggle */}
           <Button

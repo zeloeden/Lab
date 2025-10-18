@@ -622,7 +622,7 @@ export function Settings() {
             {/* Seed card removed per request */}
               {/* Scale Settings */}
               {(() => {
-                const { supported, connected, reading, connect, tare, ping, reconnect, setSerialOptions, mode, setMode, wsUrl, setWsUrl, pickJA5003 } = useScale();
+                const { supported, connected, reading, connect, tare, ping, reconnect, setSerialOptions, mode, setMode, wsUrl, setWsUrl, pickJA5003, serialActive } = useScale() as any;
                 const [consoleLines, setConsoleLines] = React.useState<string[]>([]);
                 React.useEffect(()=>{
                   if (reading?.raw){
@@ -634,6 +634,8 @@ export function Settings() {
                 const [stopBits, setStopBits] = React.useState<'1'|'2'>('1');
                 const [parity, setParity] = React.useState<'none'|'even'|'odd'>('none');
                 const [flow, setFlow] = React.useState<'none'|'hardware'>('none');
+                const wsConnected = connected && mode === 'bridge';
+                const bothActive = Boolean(wsConnected && serialActive);
                 return (
                   <Card>
                     <CardHeader>
@@ -651,6 +653,11 @@ export function Settings() {
                           Web Serial is not available. Use Chrome/Edge on HTTPS or localhost.
                         </div>
                       )}
+                      {bothActive && (
+                        <div className="p-3 rounded bg-red-50 text-red-700 text-sm">
+                          Warning: Web Serial and WS Bridge are both active. Use only one mode at a time.
+                        </div>
+                      )}
                       <div className="space-y-3">
                         <div>
                           <Label>Mode</Label>
@@ -663,19 +670,22 @@ export function Settings() {
                           <div>
                             <Label>Bridge URL</Label>
                             <Input value={wsUrl} onChange={(e)=> setWsUrl(e.target.value)} placeholder="ws://127.0.0.1:8787" />
-                            <p className="text-xs text-gray-500 mt-1">Run your Python bridge or service at this address.</p>
+                            <p className="text-xs text-gray-500 mt-1">Run the bridge: node scripts/ja5003_ws_bridge.js (or pnpm run scale:bridge:soft).</p>
                           </div>
+                        )}
+                        {mode==='webserial' && (
+                          <div className="text-xs text-gray-500">Web Serial works only in Chrome/Edge. Firefox/Safari not supported.</div>
                         )}
                       </div>
 
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-2">
                         <div>
                           <Label>Baud</Label>
-                          <Input value={baud} onChange={(e)=> setBaud(parseInt(e.target.value)||9600)} placeholder="9600" />
+                          <Input value={baud} onChange={(e)=> setBaud(parseInt(e.target.value)||9600)} placeholder="9600" disabled={mode==='bridge'} />
                         </div>
                         <div>
                           <Label>Data Bits</Label>
-                          <Select value={dataBits} onValueChange={(v)=> setDataBits(v as '7'|'8')}>
+                          <Select value={dataBits} onValueChange={(v)=> setDataBits(v as '7'|'8')} disabled={mode==='bridge'}>
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="7">7</SelectItem>
@@ -685,7 +695,7 @@ export function Settings() {
                         </div>
                         <div>
                           <Label>Stop Bits</Label>
-                          <Select value={stopBits} onValueChange={(v)=> setStopBits(v as '1'|'2')}>
+                          <Select value={stopBits} onValueChange={(v)=> setStopBits(v as '1'|'2')} disabled={mode==='bridge'}>
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="1">1</SelectItem>
@@ -695,7 +705,7 @@ export function Settings() {
                         </div>
                         <div>
                           <Label>Parity</Label>
-                          <Select value={parity} onValueChange={(v)=> setParity(v as 'none'|'even'|'odd')}>
+                          <Select value={parity} onValueChange={(v)=> setParity(v as 'none'|'even'|'odd')} disabled={mode==='bridge'}>
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">None</SelectItem>
@@ -706,7 +716,7 @@ export function Settings() {
                         </div>
                         <div>
                           <Label>Flow Control</Label>
-                          <Select value={flow} onValueChange={(v)=> setFlow(v as 'none'|'hardware')}>
+                          <Select value={flow} onValueChange={(v)=> setFlow(v as 'none'|'hardware')} disabled={mode==='bridge'}>
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">None</SelectItem>
@@ -720,9 +730,9 @@ export function Settings() {
                           <span className={`h-2 w-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
                           {connected ? 'Connected' : 'Not connected'}
                         </span>
-                        <Button variant="outline" onClick={()=> { setSerialOptions({ baudRate: baud, dataBits: dataBits==='8'?8:7, stopBits: stopBits==='2'?2:1, parity, flowControl: flow }); toast.success('Scale serial options saved'); }}>Save</Button>
-                        <Button onClick={connect}>Connect</Button>
-                        <Button variant="outline" onClick={pickJA5003}>Pick JA5003</Button>
+                        <Button variant="outline" onClick={()=> { setSerialOptions({ baudRate: baud, dataBits: dataBits==='8'?8:7, stopBits: stopBits==='2'?2:1, parity, flowControl: flow }); toast.success('Scale serial options saved'); }} disabled={mode==='bridge'}>Save</Button>
+                        <Button onClick={connect} disabled={mode==='bridge'}>Connect</Button>
+                        <Button variant="outline" onClick={pickJA5003} disabled={mode==='bridge'}>Pick JA5003</Button>
                         <Button variant="secondary" onClick={tare}>Send TARE</Button>
                       </div>
                       <div className="text-xs text-gray-500 mt-1">
@@ -732,8 +742,8 @@ export function Settings() {
                         <div className="flex items-center justify-between mb-1">
                           <div className="text-xs font-medium">Live Console</div>
                           <div className="flex gap-2">
-                            <Button variant="outline" size="sm" onClick={ping}>Ping</Button>
-                            <Button variant="outline" size="sm" onClick={reconnect}>Reconnect</Button>
+                            <Button variant="outline" size="sm" onClick={ping} disabled={mode==='webserial'}>Ping</Button>
+                            <Button variant="outline" size="sm" onClick={reconnect} disabled={mode==='webserial'}>Reconnect</Button>
                             <Button variant="ghost" size="sm" onClick={()=> setConsoleLines([])}>Clear</Button>
                           </div>
                         </div>

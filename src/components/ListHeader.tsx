@@ -54,6 +54,7 @@ export const ListHeader: React.FC<Props> = ({
             <Input
               value={q}
               onChange={(e) => onQChange(e.target.value)}
+              onFocus={() => import('@/pages/FormulaFirst')}
               placeholder={placeholder || 'Search...'}
               className="pl-9"
               aria-label="Global search"

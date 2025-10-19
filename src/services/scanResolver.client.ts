@@ -59,24 +59,36 @@ export function resolveScanToPreparationRoute(scanRaw: string): { ok: true; rout
   const formulas: Formula[] = ls('nbslims_formulas', []);
   const samples:  Sample[]  = ls('nbslims_enhanced_samples', []);
 
+  // Helper to generate formula-first route (preparations are now modal-based)
+  const formulaRoute = (formulaId: string) => {
+    const formula = formulas.find(x => x.id === formulaId);
+    if (!formula) return null;
+    // Use internalCode or id as the code parameter
+    const code = formula.internalCode || formula.id;
+    return `/formula-first?code=${encodeURIComponent(code)}&auto=start`;
+  };
+
   // 1) QR KV
   const kv = parseKvQR(code);
   if (kv?.F && UUID_RE.test(kv.F)) {
-    const f = formulas.find(x => x.id === kv.F);
-    if (f) { const s = findOrCreatePrepSession(f.id); return { ok: true, route: `/preparations/${s.id}` }; }
+    const route = formulaRoute(kv.F);
+    if (route) return { ok: true, route };
   }
 
   // 2) Raw UUID
   if (UUID_RE.test(code)) {
-    const f = formulas.find(x => x.id === code);
-    if (f) { const s = findOrCreatePrepSession(f.id); return { ok: true, route: `/preparations/${s.id}` }; }
+    const route = formulaRoute(code);
+    if (route) return { ok: true, route };
   }
 
   // 3) Barcode with internalCode
   const internal = parseFormulaBarcode(code);
   if (internal) {
     const f = formulas.find(x => (x.internalCode||'').toUpperCase() === internal.toUpperCase());
-    if (f) { const s = findOrCreatePrepSession(f.id); return { ok: true, route: `/preparations/${s.id}` }; }
+    if (f) {
+      const route = formulaRoute(f.id);
+      if (route) return { ok: true, route };
+    }
   }
 
   // 4) Sample code: S:<code> or plain code
@@ -85,7 +97,10 @@ export function resolveScanToPreparationRoute(scanRaw: string): { ok: true; rout
   const sample = samples.find((s:any) => (s.sampleId||s.sampleCode||'').toUpperCase() === sampleCode.toUpperCase());
   if (sample) {
     const f = pickFormulaBySample(sample.id, formulas);
-    if (f) { const s = findOrCreatePrepSession(f.id); return { ok: true, route: `/preparations/${s.id}` }; }
+    if (f) {
+      const route = formulaRoute(f.id);
+      if (route) return { ok: true, route };
+    }
   }
 
   return { ok: false, msg: 'Formula not found for scanned code' };

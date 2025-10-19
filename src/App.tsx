@@ -33,7 +33,7 @@ import { RawMaterials } from '@/pages/RawMaterials';
 const FormulaFirst = lazy(() => import('@/pages/FormulaFirst'));
 // Removed legacy labels routes
 import { TestPhase2 } from '@/pages/TestPhase2';
-const PreparationDetail = lazyNamed(() => import('@/pages/PreparationDetail'), 'PreparationDetail');
+// PreparationDetail removed - preparations are now modal-based
 import { AppearanceProvider } from '@/providers/AppearanceProvider';
 import { useEffect } from 'react';
 import { pushOutbox } from '@/lib/sync';
@@ -41,14 +41,9 @@ import { useEffect as useReactEffect } from 'react';
 import { useScale } from '@/lib/scale/useScale';
 import { DebugErrorBoundary } from '@/components/DebugErrorBoundary';
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
+import { queryClient } from '@/lib/queryClient';
+
+// Note: QueryClient now imported from lib/queryClient.ts for reuse across the app
 
 // Component to initialize click sounds
 const ClickSoundInitializer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -148,17 +143,15 @@ const App = () => (
                         
                         {/* Redirect tests to test-management */}
                         <Route path="/tests" element={<Navigate to="/test-management" replace />} />
+                        <Route path="/tests/management" element={<Navigate to="/test-management" replace />} />
                         
                         <Route path="/test-management" element={
                           <Layout>
                             <TestManagement />
                           </Layout>
                         } />
-                        <Route path="/preparations/:id" element={
-                          <Layout>
-                            <PreparationDetail />
-                          </Layout>
-                        } />
+                        
+                        {/* Preparations are now modal-based (no dedicated route needed) */}
                         
                         <Route path="/formulas" element={
                           <Layout>

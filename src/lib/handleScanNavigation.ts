@@ -6,7 +6,14 @@ export function handleScanNavigation(nav: (to: string) => void, raw: string) {
 
   switch (qr.type) {
     case 'prep':
-      nav(`/preparations/${encodeURIComponent(qr.id)}`);
+      // Preparations are now modal-based. If there's a formula code in extras, redirect to it
+      if (qr.extras?.formulaCode) {
+        const params = new URLSearchParams({ code: qr.extras.formulaCode, auto: 'start' });
+        nav(`/formula-first?${params.toString()}`);
+      } else {
+        // No formula context - this shouldn't happen with proper QR generation
+        console.warn('Prep QR without formula code - cannot open modal');
+      }
       break;
     case 'formula': {
       const params = new URLSearchParams({ code: qr.code, auto: 'start' });

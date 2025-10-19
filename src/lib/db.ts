@@ -1,6 +1,6 @@
 import Dexie, { Table } from 'dexie';
 
-export interface PreparationSession { id:string; formulaId:string; formulaVersionId?:string; attemptNo:number; status:'in_progress'|'failed'|'locked_failed'|'completed'|'server_rejected'; operator:string; startedAt:number; endedAt?:number; }
+export interface PreparationSession { id:string; formulaId:string; formulaVersionId?:string; formulaCode?:string; attemptNo:number; status:'in_progress'|'failed'|'locked_failed'|'completed'|'server_rejected'; operator:string; startedAt:number; endedAt?:number; }
 export interface PreparationStep { id:string; sessionId:string; sequence:number; ingredientId:string; requiredCodeValue:string; altCodeValues?:string[]; allowedSymbologies?:string[]; parser?: 'plain'|'gs1'|'kv'; targetQtyG:number; toleranceAbsG:number; capturedQtyG?:number; isStable?:boolean; status:'pending'|'ok'|'failed'; failureReason?:string; capturedAt?:number; }
 export interface AuditEvent { id?:number; sessionId:string; ts:number; user:string; action:string; payload:any; }
 export interface TestSchedule { id:string; type:'formula'|'personal'; linkId:string; startAt:number; dueAt:number; remindOffsets:number[]; status:'scheduled'|'done'|'canceled'; }
@@ -21,13 +21,15 @@ export class NBSDB extends Dexie {
       outbox: '++id, ts, type, sent',
       tests: 'id, type, linkId, dueAt, status'
     });
-    // Add secondary indexes for Samples (if present in this DB layer)
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (this as any).version(2).stores({
-        samples: 'id, source, status, createdAt, preparationSessionId, [source+status+createdAt]'
-      });
-    } catch {}
+    // Version 2: Add samples table and update sessions indexes
+    this.version(2).stores({
+      sessions: 'id, formulaId, formulaCode, startedAt, status',
+      steps: 'id, sessionId, sequence, ingredientId, status',
+      events: '++id, sessionId, ts',
+      outbox: '++id, ts, type, sent',
+      tests: 'id, type, linkId, dueAt, status',
+      samples: 'id, source, status, createdAt, preparationSessionId, [source+status+createdAt]'
+    });
   }
 }
 export const db = new NBSDB();

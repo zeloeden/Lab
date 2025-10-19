@@ -4,7 +4,8 @@
   "packageManager": "pnpm@8.10.0",
   "scripts": {
     "dev": "vite --port 5173 --strictPort --open",
-    "dev:with-bridge": "concurrently -n BRIDGE,WEB -c green,blue \"pnpm run bridge:start\" \"pnpm run dev:safe\"",
+    "dev:with-bridge": "concurrently -n vite,bridge -c cyan,magenta \"pnpm run dev\" \"pnpm run scale:bridge:auto\"",
+    "dev:with-bridge:runner": "concurrently -n BRIDGE,WEB -c green,blue \"pnpm run bridge:start\" \"pnpm run dev:safe\"",
     "build": "vite build",
     "lint": "eslint --quiet ./src",
     "preview": "vite preview",

@@ -1,49 +1,48 @@
-import React, { useEffect, useState } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/db';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { telemetry } from '@/lib/telemetry';
 
-export function PreparationDetails({ id, layout }:{ id: string; layout: 'drawer'|'full' }){
-  const [session, setSession] = useState<any>(null);
-  const [steps, setSteps] = useState<any[]>([]);
+export function PreparationDetails({ id, layout, defaultOpen, onOpenChange }:{ id: string; layout: 'drawer'|'full'; defaultOpen?: boolean; onOpenChange?: (open: boolean) => void }){
   const [sample, setSample] = useState<any>(null);
-  const [loaded, setLoaded] = useState(false);
-  const [loadError, setLoadError] = useState<unknown>(null);
   const { user, hasPermission } = useAuth();
   const canViewCost = (user?.role === 'Admin' || (user as any)?.role === 'Owner' || hasPermission('purchasing','view_costs'));
-  const [sp] = useSearchParams();
-  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const cacheKey = ['session', id]; // <-- CHANGED: use 'session' to match wrapper
 
-  useEffect(()=>{
-    let mounted = true;
-    (async()=>{
+  console.debug('[prep-details-inner] id', id, 'defaultOpen?', !!defaultOpen);
+
+  // Query with retry - use 'session' key to match wrapper's cache
+  const prepQ = useQuery({
+    queryKey: cacheKey, // <-- CHANGED: use same key as wrapper
+    queryFn: async () => {
+      if (!id) return null;
+      const s = await db.sessions.get(id);
+      const st = await db.steps.where('sessionId').equals(id).sortBy('sequence');
+      
+      // Find associated sample for snapshot cost
       try {
-        const s = await db.sessions.get(id);
-        const st = await db.steps.where('sessionId').equals(id).sortBy('sequence');
-        if (!mounted) return;
-        setSession(s);
-        setSteps(st);
-        // find associated sample for snapshot cost
-        try {
-          const raw = localStorage.getItem('nbslims_enhanced_samples');
-          const list = raw ? JSON.parse(raw) : [];
-          const found = list.find((s:any)=> s.preparationSessionId === id) || null;
-          setSample(found);
-          // Emit telemetry when cost panel is viewed
-          if (found && canViewCost) {
-            telemetry.emit('prep.view.costPanel', { preparationSessionId: id, sampleId: found.id });
-          }
-        } catch {}
-      } catch (e) {
-        if (mounted) setLoadError(e);
-      } finally {
-        if (mounted) setLoaded(true);
-      }
-    })();
-    return ()=>{ mounted = false; };
-  }, [id, canViewCost]);
+        const raw = localStorage.getItem('nbslims_enhanced_samples');
+        const list = raw ? JSON.parse(raw) : [];
+        const found = list.find((sample:any)=> sample.preparationSessionId === id) || null;
+        setSample(found);
+        // Emit telemetry when cost panel is viewed
+        if (found && canViewCost) {
+          telemetry.emit('prep.view.costPanel', { preparationSessionId: id, sampleId: found.id });
+        }
+      } catch {}
+      
+      return { session: s, steps: st };
+    },
+    initialData: () => (qc.getQueryData(cacheKey) as any) ?? null, // <-- CHANGED: use cache
+    enabled: !!id,
+    retry: 2,           // Brief backoff
+    retryDelay: 250,
+    staleTime: 5_000,
+  });
 
   const variance = (t:number|undefined, a:number|undefined) => {
     if (t === undefined || a === undefined) return '—';
@@ -54,20 +53,28 @@ export function PreparationDetails({ id, layout }:{ id: string; layout: 'drawer'
   const containerClass = layout === 'drawer' ? 'space-y-4' : 'p-4 space-y-4';
 
   if (!id) return <div className={containerClass}>Invalid preparation id</div>;
-  if (!loaded) return <div className={containerClass}>Loading…</div>;
-  if (loadError) {
-    console.error('[prep] failed', loadError);
+  
+  // Handle loading state
+  if (prepQ.isLoading) return <div className={containerClass}>Loading…</div>;
+  
+  // Handle error state
+  if (prepQ.isError) {
+    console.error('[prep] failed', prepQ.error);
     return <div className={containerClass + ' text-red-600'}>Preparation failed to load.</div>;
   }
-  if (!session) {
-    const fallbackCode = (sp.get('f') || '').trim();
-    if (fallbackCode) {
-      console.warn('[prep] not found, falling back to formula-first with auto-start', { fallbackCode });
-      navigate(`/formula-first?code=${encodeURIComponent(fallbackCode)}&auto=start&from=prep-fallback`, { replace: true });
+  
+  // Safety redirect: support /preparations/:id?f=<formulaCode> legacy
+  const f = sp.get('f');
+  if (prepQ.isSuccess && (!prepQ.data || !prepQ.data.session)) {
+    if (f) {
+      navigate(`/formula-first?code=${encodeURIComponent(f)}&auto=start`, { replace: true });
       return null;
     }
     return <div className={containerClass}>Preparation not found.</div>;
   }
+
+  const session = prepQ.data.session;
+  const steps = prepQ.data.steps;
 
   return (
     <div className={containerClass}>

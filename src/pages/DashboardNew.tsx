@@ -139,10 +139,14 @@ export const DashboardNew: React.FC = () => {
 
   async function handleScannedCode(code: string){
     setScanBusy(true); setScanError(null);
-    console.debug('[qr] scan:', code);
+    
+    // Normalize scan to remove garbage characters
+    const { normalizeScan } = await import('@/lib/qr');
+    const clean = normalizeScan(code);
+    console.debug('[qr] scan raw:', code, 'clean:', clean);
     
     try {
-      handleScanNavigation(navigate, code);
+      handleScanNavigation(navigate, clean);
       setScanBusy(false);
       try { scanInputRef.current?.select(); } catch {}
     } catch (err) {

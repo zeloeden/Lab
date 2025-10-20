@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useWizard } from '@/features/preparation/useWizard';
 import { CodeInput } from '@/components/CodeInput';
-import { WeighPanel } from '@/components/WeighPanel';
+import { WeighPanelStable } from '@/components/WeighPanelStable';
 import { db } from '@/lib/db';
 import { SupervisorOverride } from '@/features/preparation/SupervisorOverride';
 import { useAuth } from '@/contexts/AuthContext';
@@ -37,6 +37,7 @@ export function Wizard(props: {
     parser: s.parser ?? 'plain',
     targetQtyG: s.targetQtyG,
     toleranceAbsG: Math.max(s.targetQtyG * (s.tolerancePct ?? 0.5)/100, s.toleranceMinAbsG ?? 0.010),
+    material: s.material, // Pass material for registry-based validation
   })), [stepsDef]);
 
   if (!w.sessionId && w.status === 'idle') {
@@ -79,11 +80,12 @@ export function Wizard(props: {
             altCodeValues={step.altCodeValues}
             allowedSymbologies={step.allowedSymbologies}
             parser={step.parser}
+            material={step.material}
             onPass={()=> w.unlockStep()}
             onFail={()=>{}}
           />
 
-          <WeighPanel
+          <WeighPanelStable
             targetG={step.targetQtyG}
             tolAbsG={step.toleranceAbsG}
             autoTare

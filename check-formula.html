@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head><title>Check Formula</title></head>
+<body>
+<h1>Formula Check</h1>
+<pre id="output"></pre>
+<script>
+// Check formulas
+const formulas = JSON.parse(localStorage.getItem('nbslims_formulas') || '[]');
+const sky = formulas.find(f => f.name === 'sky' || f.formulaName === 'sky');
+
+// Check samples
+const samples = JSON.parse(localStorage.getItem('nbslims_enhanced_samples') || '[]');
+const musk = samples.find(s => s.code === 'GIV001001' || s.customIdNo === 'GIV001001');
+
+const output = {
+  formula: {
+    name: sky?.name || sky?.formulaName,
+    ingredients: sky?.ingredients?.map(ing => ({
+      rawMaterialId: ing.rawMaterialId,
+      code: ing.code,
+      qty: ing.qty
+    }))
+  },
+  muskSample: {
+    id: musk?.id,
+    code: musk?.code || musk?.customIdNo,
+    name: musk?.itemNameEN || musk?.name,
+    qrPayload: musk?.qrPayload
+  },
+  mismatch: sky?.ingredients?.[0]?.rawMaterialId !== musk?.id
+};
+
+document.getElementById('output').textContent = JSON.stringify(output, null, 2);
+console.log('Formula Check:', output);
+</script>
+</body>
+</html>
+

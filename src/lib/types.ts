@@ -29,6 +29,8 @@ export interface Sample {
   itemNameEN: string;
   itemNameAR: string;
   supplierId: string;
+  customerId?: string; // Customer who submitted the sample
+  customerSampleNumber?: string; // Customer's internal sample number
   patchNumber: string; // Main patch number field (renamed from batchNumber)
   refCode?: string; // New field for reference code
   supplierCode?: string; // New field for supplier code (sales number)

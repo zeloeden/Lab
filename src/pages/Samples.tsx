@@ -163,7 +163,7 @@ export const Samples: React.FC = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
-  const [isPatchGroupDialogOpen, setIsPatchGroupDialogOpen] = useState(false);
+  const [isDateGroupDialogOpen, setIsDateGroupDialogOpen] = useState(false);
   const [isLedgerDialogOpen, setIsLedgerDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'samples' | 'branding'>('samples');
   const [isTestFormulaDialogOpen, setIsTestFormulaDialogOpen] = useState(false);
@@ -229,7 +229,7 @@ export const Samples: React.FC = () => {
   };
   
   const [selectedSample, setSelectedSample] = useState<EnhancedSample | null>(null);
-  const [selectedPatchNumber, setSelectedPatchNumber] = useState<string>('');
+  const [selectedDate, setSelectedDate] = useState<string>('');
 
   // Form state for both create and edit
   const [formData, setFormData] = useState({
@@ -417,7 +417,6 @@ export const Samples: React.FC = () => {
               itemNameAR: s.itemNameAR || '',
               supplierId: s.supplierId || '',
               supplierCode: s.supplierCode || '',
-              batchNumber: s.patchNumber || '',
               storageLocation: {
                 rackArea: s.storageLocation?.rackArea || s.storageLocation?.rackNumber,
                 rackNumber: s.storageLocation?.rackNumber,
@@ -641,13 +640,17 @@ export const Samples: React.FC = () => {
     window.location.href = '/label-editor';
   }, []);
 
-  const handlePatchClick = useCallback((patchNumber: string) => {
-    setSelectedPatchNumber(patchNumber);
-    setIsPatchGroupDialogOpen(true);
+  const handleDateClick = useCallback((date: string) => {
+    setSelectedDate(date);
+    setIsDateGroupDialogOpen(true);
   }, []);
 
-  const getPatchSamples = useCallback((patchNumber: string) => {
-    return samples.filter(sample => sample.patchNumber === patchNumber);
+  const getDateSamples = useCallback((date: string) => {
+    return samples.filter(sample => {
+      if (!sample.dateOfSample) return false;
+      const sampleDate = new Date(sample.dateOfSample).toISOString().split('T')[0];
+      return sampleDate === date;
+    });
   }, [samples]);
 
   const handleEditClick = useCallback((sample: EnhancedSample) => {
@@ -1394,7 +1397,7 @@ export const Samples: React.FC = () => {
                     <TableCell><Badge className="bg-gray-100 text-gray-800 border">{(sample as any).traceability === 'actual' ? 'Actual' : 'Theoretical'}</Badge></TableCell>
                     <TableCell>{(sample as any).source === 'FORMULA' ? (
                       <div className="text-sm">
-                        <div className="font-mono">{highlight((sample as any).formulaId || '—', tokenize(debouncedSearch))}</div>
+                        <div>{highlight(sample.itemNameEN || (sample as any).formulaName || 'Formula Sample', tokenize(debouncedSearch))}</div>
                         <div className="text-gray-500">{highlight((sample as any).formulaVersionLabel || 'unversioned', tokenize(debouncedSearch))}</div>
                       </div>
                     ) : '—'}</TableCell>
@@ -1432,11 +1435,10 @@ export const Samples: React.FC = () => {
                                   sampleId: sample.sampleId || sample.id,
                                   sampleNo: sample.sampleNo || 0,
                                   itemNameEN: sample.itemNameEN || '',
-                                  itemNameAR: sample.itemNameAR || '',
-                                  supplierId: sample.supplierId || '',
-                                  supplierCode: sample.supplierCode || '',
-                                  batchNumber: sample.patchNumber || '',
-                                  storageLocation: {
+      itemNameAR: sample.itemNameAR || '',
+      supplierId: sample.supplierId || '',
+      supplierCode: sample.supplierCode || '',
+      storageLocation: {
                                     rackArea: sample.storageLocation?.rackArea || sample.storageLocation?.rackNumber,
                                     rackNumber: sample.storageLocation?.rackNumber,
                                     position: sample.storageLocation?.position || 0
@@ -1583,6 +1585,10 @@ export const Samples: React.FC = () => {
               sample={selectedSample as any}
               onEdit={(s) => handleEditClick(s as any)}
               onClose={() => setIsViewDialogOpen(false)}
+              onDateClick={(date) => {
+                setIsViewDialogOpen(false);
+                handleDateClick(date);
+              }}
             />
           )}
         </DialogContent>
@@ -1659,49 +1665,49 @@ export const Samples: React.FC = () => {
       </Dialog>
 
 
-      {/* Patch Group Dialog */}
-      <Dialog open={isPatchGroupDialogOpen} onOpenChange={setIsPatchGroupDialogOpen}>
+      {/* Date Group Dialog */}
+      <Dialog open={isDateGroupDialogOpen} onOpenChange={setIsDateGroupDialogOpen}>
         <DialogContent 
           className="max-w-6xl max-h-[90vh] overflow-y-auto"
           onInteractOutside={(e) => e.preventDefault()}
         >
           <DialogHeader>
-            <DialogTitle>Patch Group: {selectedPatchNumber}</DialogTitle>
+            <DialogTitle>Samples from {selectedDate}</DialogTitle>
             <DialogDescription>
-              All samples with patch number "{selectedPatchNumber}" and their shipment tracking information
+              All samples received on "{selectedDate}" and their shipment tracking information
             </DialogDescription>
           </DialogHeader>
-          {selectedPatchNumber && (
+          {selectedDate && (
             <div className="space-y-6">
-              {/* Patch Summary */}
+              {/* Date Summary */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Package className="h-5 w-5" />
-                    Patch Summary
+                    Date Summary
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-4 gap-4">
                     <div className="text-center">
-                      <p className="text-2xl font-bold text-blue-600">{getPatchSamples(selectedPatchNumber).length}</p>
+                      <p className="text-2xl font-bold text-blue-600">{getDateSamples(selectedDate).length}</p>
                       <p className="text-sm text-gray-600">Total Samples</p>
                     </div>
                     <div className="text-center">
                       <p className="text-2xl font-bold text-green-600">
-                        {getPatchSamples(selectedPatchNumber).filter(s => s.status === 'Accepted').length}
+                        {getDateSamples(selectedDate).filter(s => s.status === 'Accepted').length}
                       </p>
                       <p className="text-sm text-gray-600">Accepted</p>
                     </div>
                     <div className="text-center">
                       <p className="text-2xl font-bold text-yellow-600">
-                        {getPatchSamples(selectedPatchNumber).filter(s => s.status === 'Testing' || s.status === 'Pending').length}
+                        {getDateSamples(selectedDate).filter(s => s.status === 'Testing' || s.status === 'Pending').length}
                       </p>
                       <p className="text-sm text-gray-600">In Progress</p>
                     </div>
                     <div className="text-center">
                       <p className="text-2xl font-bold text-purple-600">
-                        {getPatchSamples(selectedPatchNumber).filter(s => s.shipment?.airWaybill).length}
+                        {getDateSamples(selectedDate).filter(s => s.shipment?.airWaybill).length}
                       </p>
                       <p className="text-sm text-gray-600">With Tracking</p>
                     </div>
@@ -1709,10 +1715,10 @@ export const Samples: React.FC = () => {
                 </CardContent>
               </Card>
 
-              {/* Samples in Patch */}
+              {/* Samples on Date */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Samples in Patch {selectedPatchNumber}</CardTitle>
+                  <CardTitle>Samples from {selectedDate}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <Table>
@@ -1727,7 +1733,7 @@ export const Samples: React.FC = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {getPatchSamples(selectedPatchNumber).map((sample) => {
+                      {getDateSamples(selectedDate).map((sample) => {
                         const supplier = suppliers.find(s => s.id === sample.supplierId);
                         return (
                           <TableRow key={sample.id}>

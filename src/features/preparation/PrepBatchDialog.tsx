@@ -19,20 +19,27 @@ export function PrepBatchDialog({
   const [size,setSize] = useState<number>(100);
   const [unit,setUnit] = useState<PrepUnit>('g');
   const [error,setError] = useState<string|null>(null);
+  const [preview, setPreview] = useState<any[]>([]);
 
-  const preview = useMemo(()=>{
-    if (!open) return [] as any[];
-    try {
+  useEffect(() => {
+    if (!open) {
       setError(null);
-      const overrideBatch: OverrideBatch = { size, unit };
-      return buildStepsDefFromFormula(formula, { getRawMaterial, overrideBatch });
-    } catch (e:any) {
-      setError(e?.message ?? String(e));
-      return [] as any[];
+      setPreview([]);
+      return;
     }
+    
+    (async () => {
+      try {
+        setError(null);
+        const overrideBatch: OverrideBatch = { size, unit };
+        const steps = await buildStepsDefFromFormula(formula, { getRawMaterial, overrideBatch });
+        setPreview(steps);
+      } catch (e:any) {
+        setError(e?.message ?? String(e));
+        setPreview([]);
+      }
+    })();
   }, [open, formula, getRawMaterial, size, unit]);
-
-  useEffect(()=>{ if (!open){ setError(null); }}, [open]);
 
   if (!open) return null;
 

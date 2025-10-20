@@ -8,6 +8,8 @@ import { telemetry } from '@/lib/telemetry';
 
 export function PreparationDetails({ id, layout, defaultOpen, onOpenChange }:{ id: string; layout: 'drawer'|'full'; defaultOpen?: boolean; onOpenChange?: (open: boolean) => void }){
   const [sample, setSample] = useState<any>(null);
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { user, hasPermission } = useAuth();
   const canViewCost = (user?.role === 'Admin' || (user as any)?.role === 'Owner' || hasPermission('purchasing','view_costs'));
   const qc = useQueryClient();
@@ -49,6 +51,32 @@ export function PreparationDetails({ id, layout, defaultOpen, onOpenChange }:{ i
     const v = (a - t);
     return `${v >= 0 ? '+' : ''}${v.toFixed(4)} g`;
   };
+  
+  // Helper to get ingredient display name from UUID
+  const getIngredientName = (ingredientId: string): string => {
+    try {
+      // Check enhanced samples (localStorage)
+      const samplesRaw = localStorage.getItem('nbslims_enhanced_samples');
+      if (samplesRaw) {
+        const samples = JSON.parse(samplesRaw);
+        const found = samples.find((s: any) => s.id === ingredientId);
+        if (found) return found.itemNameEN || found.name || ingredientId;
+      }
+      
+      // Check raw materials (localStorage)
+      const rawMaterialsRaw = localStorage.getItem('nbslims_raw_materials');
+      if (rawMaterialsRaw) {
+        const materials = JSON.parse(rawMaterialsRaw);
+        const found = materials.find((m: any) => m.id === ingredientId);
+        if (found) return found.name || found.itemNameEN || ingredientId;
+      }
+    } catch (error) {
+      console.error('Error looking up ingredient name:', error);
+    }
+    
+    // Fallback to ID
+    return ingredientId;
+  };
 
   const containerClass = layout === 'drawer' ? 'space-y-4' : 'p-4 space-y-4';
 
@@ -64,7 +92,7 @@ export function PreparationDetails({ id, layout, defaultOpen, onOpenChange }:{ i
   }
   
   // Safety redirect: support /preparations/:id?f=<formulaCode> legacy
-  const f = sp.get('f');
+  const f = searchParams.get('f');
   if (prepQ.isSuccess && (!prepQ.data || !prepQ.data.session)) {
     if (f) {
       navigate(`/formula-first?code=${encodeURIComponent(f)}&auto=start`, { replace: true });
@@ -102,7 +130,7 @@ export function PreparationDetails({ id, layout, defaultOpen, onOpenChange }:{ i
                 {steps.map((s:any)=> (
                   <tr key={s.id} className="border-t">
                     <td className="p-2">{s.sequence}</td>
-                    <td className="p-2 font-mono">{s.ingredientId}</td>
+                    <td className="p-2">{getIngredientName(s.ingredientId)}</td>
                     <td className="p-2">{(s.targetQtyG ?? 0).toFixed(4)}</td>
                     <td className="p-2">{(s.capturedQtyG ?? 0).toFixed(4)}</td>
                     <td className="p-2">{variance(s.targetQtyG, s.capturedQtyG)}</td>

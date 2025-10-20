@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { UserAvatar } from '@/components/UserAvatar';
 import { SoundSettings } from '@/components/SoundSettings';
 import { CustomFieldsManager } from '@/components/CustomFieldsManager';
+import { SeedDataButton } from '@/components/SeedDataButton';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { 
@@ -202,7 +203,7 @@ export function Settings() {
       </div>
 
       <Tabs defaultValue="profile" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 md:grid-cols-5 lg:w-auto lg:inline-grid">
+        <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 lg:w-auto lg:inline-grid">
           <TabsTrigger value="profile" className="flex items-center gap-2">
             <User className="h-4 w-4" />
             <span className="hidden sm:inline">Profile</span>
@@ -222,6 +223,10 @@ export function Settings() {
           <TabsTrigger value="finished-goods" className="flex items-center gap-2">
             <Package className="h-4 w-4" />
             <span className="hidden sm:inline">Finished Goods</span>
+          </TabsTrigger>
+          <TabsTrigger value="developer" className="flex items-center gap-2">
+            <Database className="h-4 w-4" />
+            <span className="hidden sm:inline">Developer</span>
           </TabsTrigger>
         </TabsList>
 
@@ -624,9 +629,26 @@ export function Settings() {
               {(() => {
                 const { supported, connected, reading, connect, tare, ping, reconnect, setSerialOptions, mode, setMode, wsUrl, setWsUrl, pickJA5003, serialActive } = useScale() as any;
                 const [consoleLines, setConsoleLines] = React.useState<string[]>([]);
+                
+                // Helper to format reading (both for console and "Last:" line)
+                const formatReading = (raw: string | null | undefined): string => {
+                  if (!raw) return '—';
+                  try {
+                    const parsed = JSON.parse(raw);
+                    if (parsed.type === 'weight') {
+                      const stableTag = parsed.stable ? '[STABLE]' : '[live]';
+                      return `${parsed.value.toFixed(3)} ${parsed.unit} ${stableTag}`;
+                    }
+                  } catch {
+                    // Not JSON, return as-is (old bridge format)
+                  }
+                  return raw;
+                };
+                
                 React.useEffect(()=>{
                   if (reading?.raw){
-                    setConsoleLines(prev=> [new Date().toLocaleTimeString() + '  ' + reading.raw, ...prev].slice(0,10));
+                    const displayLine = formatReading(reading.raw);
+                    setConsoleLines(prev=> [new Date().toLocaleTimeString() + '  ' + displayLine, ...prev].slice(0,10));
                   }
                 }, [reading?.raw]);
                 const [baud, setBaud] = React.useState(9600);
@@ -736,7 +758,7 @@ export function Settings() {
                         <Button variant="secondary" onClick={tare}>Send TARE</Button>
                       </div>
                       <div className="text-xs text-gray-500 mt-1">
-                        Last: {reading?.raw || '—'}
+                        Last: {formatReading(reading?.raw)}
                       </div>
                       <div className="mt-3 p-2 rounded border bg-white/50 dark:bg-gray-900/30">
                         <div className="flex items-center justify-between mb-1">
@@ -1122,6 +1144,47 @@ export function Settings() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Developer Tab */}
+        <TabsContent value="developer" className="space-y-6">
+          <SeedDataButton />
+          
+          <Card className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
+                <Info className="h-5 w-5" />
+                About Test Data
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div>
+                <strong>Purpose:</strong> This feature helps you quickly populate the system with realistic 
+                test data for development, testing, and demonstration purposes.
+              </div>
+              
+              <div>
+                <strong>What gets seeded:</strong>
+                <ul className="list-disc list-inside mt-2 space-y-1 ml-4">
+                  <li><strong>Samples:</strong> 32 fragrance samples with English and Arabic names, complete with ledger data, customer assignments, pricing tiers, and storage locations</li>
+                  <li><strong>Raw Materials:</strong> 24 essential raw materials including solvents, aroma chemicals, and fragrance compounds with pricing and QR codes</li>
+                  <li><strong>Suppliers:</strong> 8 major fragrance suppliers (Givaudan, Firmenich, IFF, Symrise, Mane, Takasago, Robertet, Sensient)</li>
+                  <li><strong>Customers:</strong> 6 international customers from UAE, UK, USA, France, Saudi Arabia, and Singapore</li>
+                  <li><strong>Formulas:</strong> 5 complete formulas with proper ingredient lists and percentages</li>
+                  <li><strong>Tests:</strong> 15 sample tests with various statuses (pending, in-progress, completed)</li>
+                  <li><strong>Tasks:</strong> 8 sample tasks assigned to team members with different priorities</li>
+                  <li><strong>Purchase Orders:</strong> 5 purchase orders with line items and tracking information</li>
+                  <li><strong>Companies:</strong> 3 company profiles with initials and settings</li>
+                </ul>
+              </div>
+              
+              <div className="pt-2 border-t border-blue-200 dark:border-blue-700">
+                <strong>Note:</strong> All data includes proper relationships, QR codes, barcodes, 
+                Arabic translations, and realistic timestamps. The system will automatically reload 
+                after seeding or clearing data.
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       {/* Password Change Dialog */}
@@ -1212,3 +1275,5 @@ export function Settings() {
     </div>
   );
 }
+
+export default Settings;

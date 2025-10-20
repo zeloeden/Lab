@@ -83,6 +83,14 @@ const navItems: NavItem[] = [
     resource: 'suppliers'
   },
   {
+    key: 'customers',
+    path: '/customers',
+    iconName: 'users',
+    label: 'Customers',
+    labelAR: 'العملاء',
+    resource: 'customers'
+  },
+  {
     key: 'purchasing',
     path: '/purchasing',
     iconName: 'purchasing',

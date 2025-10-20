@@ -18,6 +18,7 @@ const Samples = lazyNamed(() => import('@/pages/Samples'), 'Samples');
 // Test pages removed - all functionality moved to TestManagement
 const TestManagement = lazyNamed(() => import('@/pages/TestManagement'), 'TestManagement');
 const Suppliers = lazyNamed(() => import('@/pages/Suppliers'), 'Suppliers');
+const Customers = lazy(() => import('@/pages/Customers'));
 const Purchasing = lazyNamed(() => import('@/pages/Purchasing'), 'Purchasing');
 const RequestedItems = lazyNamed(() => import('@/pages/RequestedItems'), 'RequestedItems');
 const Settings = lazyNamed(() => import('@/pages/Settings'), 'Settings');
@@ -40,6 +41,7 @@ import { pushOutbox } from '@/lib/sync';
 import { useEffect as useReactEffect } from 'react';
 import { useScale } from '@/lib/scale/useScale';
 import { DebugErrorBoundary } from '@/components/DebugErrorBoundary';
+import { ScanIndexKeeper } from '@/components/ScanIndexKeeper';
 
 import { queryClient } from '@/lib/queryClient';
 
@@ -116,6 +118,7 @@ const App = () => (
                 <SoundProvider>
                   <IconProvider>
                     <AppearanceProvider>
+                      <ScanIndexKeeper />
                     <RootOutbox>
                     <ClickSoundInitializer>
                     <Toaster />
@@ -187,6 +190,12 @@ const App = () => (
                         <Route path="/suppliers" element={
                           <Layout>
                             <Suppliers />
+                          </Layout>
+                        } />
+                        
+                        <Route path="/customers" element={
+                          <Layout>
+                            <Customers />
                           </Layout>
                         } />
                         

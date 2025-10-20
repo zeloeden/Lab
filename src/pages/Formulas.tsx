@@ -75,6 +75,7 @@ export const Formulas: React.FC = () => {
     { temperatureC: undefined, mixtureSpeedRpm: undefined, overallRating: undefined, notes: '' }
   );
   const [showPreparationWizard, setShowPreparationWizard] = useState(false);
+  const [prepStepsDef, setPrepStepsDef] = useState<any[]>([]);
   const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
   
   // Formula form state
@@ -293,6 +294,31 @@ export const Formulas: React.FC = () => {
     setFormulas(updatedFormulas);
     localStorage.setItem('nbslims_formulas', JSON.stringify(updatedFormulas));
   };
+
+  // Build preparation steps when wizard opens
+  useEffect(() => {
+    if (!showPreparationWizard || !selectedFormula || !overrideBatch) {
+      setPrepStepsDef([]);
+      return;
+    }
+    
+    (async () => {
+      try {
+        const rmMap = new Map<string, any>();
+        try {
+          const raw = localStorage.getItem('nbslims_raw_materials');
+          if (raw) JSON.parse(raw).forEach((rm: any)=> rmMap.set(rm.id, rm));
+        } catch {}
+        const getRawMaterial = (id: string) => rmMap.get(id) || rawMaterials.find(rm=>rm.id===id);
+        const stepsDef = await buildStepsDefFromFormula(selectedFormula as any, { getRawMaterial, overrideBatch });
+        setPrepStepsDef(stepsDef);
+      } catch (e) {
+        console.error('Failed to build steps for wizard:', e);
+        toast.error('Some ingredients lack grams or codes. Please complete authoring data.');
+        setPrepStepsDef([]);
+      }
+    })();
+  }, [showPreparationWizard, selectedFormula, overrideBatch, rawMaterials]);
 
   const updateSampleStatus = (sampleId: string, status: 'Untested' | 'Pending' | 'Testing' | 'Rejected' | 'Accepted') => {
     const stored = localStorage.getItem('nbslims_enhanced_samples');
@@ -1898,33 +1924,17 @@ export const Formulas: React.FC = () => {
                 Preparing {overrideBatch.size} {overrideBatch.unit} batch with hardware integration
               </DialogDescription>
             </DialogHeader>
-            {(() => {
-              let stepsDef: any[] = [];
-              try {
-                const rmMap = new Map<string, any>();
-                try {
-                  const raw = localStorage.getItem('nbslims_raw_materials');
-                  if (raw) JSON.parse(raw).forEach((rm: any)=> rmMap.set(rm.id, rm));
-                } catch {}
-                const getRawMaterial = (id: string) => rmMap.get(id) || rawMaterials.find(rm=>rm.id===id);
-                stepsDef = buildStepsDefFromFormula(selectedFormula as any, { getRawMaterial, overrideBatch });
-              } catch (e) {
-                console.error('Failed to build steps for wizard:', e);
-                toast.error('Some ingredients lack grams or codes. Please complete authoring data.');
-                stepsDef = [];
-              }
-              return stepsDef.length > 0 ? (
-                <PreparationWizard
-                  formula={{ id: selectedFormula.id, name: selectedFormula.name }}
-                  stepsDef={stepsDef}
-                  operator={user?.fullName || user?.id || 'operator'}
-                />
-              ) : (
-                <div className="p-4 text-center text-red-600">
-                  Unable to build dispensing steps. Check console for details.
-                </div>
-              );
-            })()}
+            {prepStepsDef.length > 0 ? (
+              <PreparationWizard
+                formula={{ id: selectedFormula.id, name: selectedFormula.name }}
+                stepsDef={prepStepsDef}
+                operator={user?.fullName || user?.id || 'operator'}
+              />
+            ) : (
+              <div className="p-4 text-center text-red-600">
+                Unable to build dispensing steps. Check console for details.
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       )}

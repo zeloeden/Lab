@@ -40,12 +40,14 @@ interface SampleDetailProps {
   sample: Sample;
   onEdit?: (sample: Sample) => void;
   onClose?: () => void;
+  onDateClick?: (date: string) => void;
 }
 
 export const SampleDetail: React.FC<SampleDetailProps> = ({
   sample,
   onEdit,
-  onClose
+  onClose,
+  onDateClick
 }) => {
   const { colors } = useTheme();
   const { hasPermission, user } = useAuth();
@@ -289,7 +291,11 @@ export const SampleDetail: React.FC<SampleDetailProps> = ({
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label className="text-sm font-medium text-gray-600">Date of Sample</Label>
-                <p className="flex items-center gap-1">
+                <p 
+                  className="flex items-center gap-1 cursor-pointer hover:text-blue-600 hover:underline transition-colors" 
+                  onClick={() => onDateClick && onDateClick(new Date(sample.dateOfSample).toISOString().split('T')[0])}
+                  title="Click to see all samples from this date"
+                >
                   <Calendar className="h-4 w-4" />
                   {new Date(sample.dateOfSample).toLocaleDateString()}
                 </p>
@@ -337,6 +343,20 @@ export const SampleDetail: React.FC<SampleDetailProps> = ({
               <Label className="text-sm font-medium text-gray-600">Supplier ID</Label>
               <p className="font-mono">{sample.supplierId}</p>
             </div>
+
+            {(sample as any).customerId && (
+              <div>
+                <Label className="text-sm font-medium text-gray-600">Customer ID</Label>
+                <p className="font-mono">{(sample as any).customerId}</p>
+              </div>
+            )}
+
+            {(sample as any).customerSampleNumber && (
+              <div>
+                <Label className="text-sm font-medium text-gray-600">Customer Sample Number</Label>
+                <p className="font-mono">{(sample as any).customerSampleNumber}</p>
+              </div>
+            )}
 
             <div>
               <Label className="text-sm font-medium text-gray-600">Barcode</Label>

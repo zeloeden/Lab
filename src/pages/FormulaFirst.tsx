@@ -146,21 +146,23 @@ export default function FormulaFirst(){
 
   useEffect(()=>{
     if (!selected || !batch) return;
-    try {
-      setError(null);
-      const rmMap = new Map<string, any>();
+    (async () => {
       try {
-        const raw = localStorage.getItem('nbslims_raw_materials');
-        if (raw) JSON.parse(raw).forEach((rm: any)=> rmMap.set(rm.id, rm));
-      } catch {}
-      const getRawMaterial = (id: string) => rmMap.get(id);
-      const steps = buildStepsDefFromFormula(selected as any, { getRawMaterial, overrideBatch: batch });
-      setStepsDef(steps);
-      setShowWizard(true);
-    } catch (e:any) {
-      setError(e?.message || 'Unable to build preparation steps');
-      setShowWizard(false);
-    }
+        setError(null);
+        const rmMap = new Map<string, any>();
+        try {
+          const raw = localStorage.getItem('nbslims_raw_materials');
+          if (raw) JSON.parse(raw).forEach((rm: any)=> rmMap.set(rm.id, rm));
+        } catch {}
+        const getRawMaterial = (id: string) => rmMap.get(id);
+        const steps = await buildStepsDefFromFormula(selected as any, { getRawMaterial, overrideBatch: batch });
+        setStepsDef(steps);
+        setShowWizard(true);
+      } catch (e:any) {
+        setError(e?.message || 'Unable to build preparation steps');
+        setShowWizard(false);
+      }
+    })();
   }, [selected, batch]);
 
   // Early return check AFTER all hooks
@@ -197,21 +199,44 @@ export default function FormulaFirst(){
             <div className="text-sm text-gray-700">Ready: {selected.name}</div>
             <button className="px-3 py-1 rounded bg-black text-white" onClick={()=> setPrepOpen(true)}>Set Batch Size</button>
           </div>
-          <PrepBatchDialog
-            open={prepOpen}
-            formula={selected}
-            getRawMaterial={(id:string)=>{
-              try { const raw = localStorage.getItem('nbslims_raw_materials'); if (!raw) return undefined; const arr = JSON.parse(raw); return arr.find((r:any)=> r.id===id); } catch { return undefined; }
-            }}
-            onCancel={()=> setPrepOpen(false)}
-            onConfirm={(size, unit)=>{ setPrepOpen(false); setBatch({ size, unit }); }}
-          />
+           <PrepBatchDialog
+             open={prepOpen}
+             formula={selected}
+             getRawMaterial={(id:string)=>{
+               try { const raw = localStorage.getItem('nbslims_raw_materials'); if (!raw) return undefined; const arr = JSON.parse(raw); return arr.find((r:any)=> r.id===id); } catch { return undefined; }
+             }}
+             onCancel={()=> {
+               setPrepOpen(false);
+               setSelected(null);
+               setBatch(null);
+               setError(null);
+               // Navigate to formulas page
+               navigate('/formulas', { replace: true });
+               // Show toast
+               import('sonner').then(({ toast }) => {
+                 toast.info('Cancelled');
+               });
+             }}
+             onConfirm={(size, unit)=>{ setPrepOpen(false); setBatch({ size, unit }); }}
+           />
         </div>
       )}
 
       {/* Guided Preparation Wizard (Modal-based) */}
       {showWizard && selected && batch && stepsDef.length>0 && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              setShowWizard(false);
+              setBatch(null);
+              import('sonner').then(({ toast }) => {
+                toast.info('Cancelled');
+              });
+            }
+          }}
+          tabIndex={-1}
+        >
           <div className="bg-white rounded-2xl w-[95vw] h-[90vh] max-w-6xl overflow-hidden flex flex-col">
             <div className="p-4 border-b flex items-center justify-between">
               <div>
@@ -219,8 +244,15 @@ export default function FormulaFirst(){
                 <div className="text-sm text-gray-600">Preparing {batch.size} {batch.unit} batch</div>
               </div>
               <button 
-                onClick={() => { setShowWizard(false); setBatch(null); }}
-                className="text-gray-500 hover:text-gray-700 p-2"
+                onClick={() => { 
+                  setShowWizard(false); 
+                  setBatch(null);
+                  import('sonner').then(({ toast }) => {
+                    toast.info('Cancelled');
+                  });
+                }}
+                className="text-gray-500 hover:text-gray-700 p-2 text-2xl leading-none"
+                title="Close (Esc)"
               >
                 ✕
               </button>

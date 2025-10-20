@@ -14,8 +14,10 @@ import { Sample, Purpose, SampleStatus, SampleAttachment } from '@/lib/types';
 import { sampleService } from '@/services/sampleService';
 import { barcodeGenerator } from '@/lib/barcodeUtils';
 import { companyService } from '@/services/companyService';
+import { customerService } from '@/services/customerService';
 import { useFieldHighlight } from '@/hooks/useFieldHighlight';
 import { qrGenerator } from '@/lib/qrGenerator';
+import { useAutoGenerateQR } from '@/hooks/useAutoGenerateQR';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SampleLedgerAdvanced } from '@/components/SampleLedgerAdvanced';
 import { getFieldOptions } from '@/lib/customFieldsUtils';
@@ -37,8 +39,9 @@ export const SampleForm: React.FC<SampleFormProps> = ({
     itemNameEN: sample?.itemNameEN || '',
     itemNameAR: sample?.itemNameAR || '',
     supplierId: sample?.supplierId || '',
-    batchNumber: sample?.patchNumber || '',
     supplierCode: sample?.supplierCode || '',
+    customerId: (sample as any)?.customerId || '',
+    customerSampleNumber: (sample as any)?.customerSampleNumber || '',
     dateOfSample: sample?.dateOfSample ? new Date(sample.dateOfSample).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
     itemGroup: sample?.itemGroup || '',
     status: (sample?.status || 'Untested') as SampleStatus,
@@ -56,6 +59,7 @@ export const SampleForm: React.FC<SampleFormProps> = ({
         { quantity: 50, price: 0, enabled: true },
         { quantity: 100, price: 0, enabled: true },
         { quantity: 200, price: 0, enabled: true },
+        { quantity: 250, price: 0, enabled: true },
         { quantity: 500, price: 0, enabled: true },
         { quantity: 1000, price: 0, enabled: true }
       ]
@@ -74,6 +78,7 @@ export const SampleForm: React.FC<SampleFormProps> = ({
   const [loading, setLoading] = useState(false);
   const [barcodePreview, setBarcodePreview] = useState<string | null>(null);
   const [companies, setCompanies] = useState<Array<{ id: string; name: string; initials: string }>>([]);
+  const [customers, setCustomers] = useState<Array<{ id: string; name: string; code?: string }>>([]);
   const [availableRacks, setAvailableRacks] = useState<string[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<string>('');
   const [sampleIdValidation, setSampleIdValidation] = useState<{ isValid: boolean; message: string; suggestion?: string }>({ isValid: true, message: '' });
@@ -83,7 +88,7 @@ export const SampleForm: React.FC<SampleFormProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Field highlighting for validation
-  const requiredFields = ['itemNameEN', 'itemNameAR', 'supplierId', 'batchNumber', 'dateOfSample'];
+  const requiredFields = ['itemNameEN', 'itemNameAR', 'supplierId', 'dateOfSample'];
   const { scrollToFirstError, highlightMissingFields } = useFieldHighlight({
     errors,
     requiredFields,
@@ -91,19 +96,40 @@ export const SampleForm: React.FC<SampleFormProps> = ({
     pulseAnimation: true
   });
 
-  // Load companies, available racks, and custom fields
+  // Auto-generate unified QR and barcode
+  const qrMaterial = sample?.id ? {
+    id: sample.id,
+    code: formData.customIdNo || sample.customIdNo,
+    name: formData.itemNameEN || sample.itemNameEN,
+    itemNameEN: formData.itemNameEN,
+    itemNameAR: formData.itemNameAR,
+    type: 'sample' as const,
+  } : null;
+  
+  const { qrData, isGenerating } = useAutoGenerateQR(qrMaterial);
+
+  // Load companies, customers, available racks, and custom fields
   useEffect(() => {
     const loadData = async () => {
       try {
         const companiesData = await companyService.getCompanies();
         setCompanies(companiesData);
         
+        const customersData = customerService.getCustomers();
+        setCustomers(customersData);
+        
         const racks = companyService.getAvailableRacks();
         setAvailableRacks(racks);
 
+        // Initialize sample customers if empty
+        if (customersData.length === 0) {
+          customerService.initializeSampleData();
+          setCustomers(customerService.getCustomers());
+        }
+
         // Custom fields are now loaded dynamically using getFieldOptions utility
       } catch (error) {
-        console.error('Error loading companies and racks:', error);
+        console.error('Error loading companies, customers and racks:', error);
       }
     };
     loadData();
@@ -116,8 +142,9 @@ export const SampleForm: React.FC<SampleFormProps> = ({
         itemNameEN: sample.itemNameEN || '',
         itemNameAR: sample.itemNameAR || '',
         supplierId: sample.supplierId || '',
-        batchNumber: sample.patchNumber || '',
         supplierCode: sample.supplierCode || '',
+        customerId: (sample as any)?.customerId || '',
+        customerSampleNumber: (sample as any)?.customerSampleNumber || '',
         dateOfSample: sample.dateOfSample ? new Date(sample.dateOfSample).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
         itemGroup: sample.itemGroup || '',
         status: (sample.status || 'Untested') as SampleStatus,
@@ -135,6 +162,7 @@ export const SampleForm: React.FC<SampleFormProps> = ({
             { quantity: 50, price: 0, enabled: true },
             { quantity: 100, price: 0, enabled: true },
             { quantity: 200, price: 0, enabled: true },
+            { quantity: 250, price: 0, enabled: true },
             { quantity: 500, price: 0, enabled: true },
             { quantity: 1000, price: 0, enabled: true }
           ]
@@ -246,9 +274,6 @@ export const SampleForm: React.FC<SampleFormProps> = ({
     if (!formData.supplierId) {
       newErrors.supplierId = 'Please select a supplier';
     }
-    if (!formData.batchNumber.trim()) {
-      newErrors.batchNumber = 'Patch number is required';
-    }
     if (!formData.dateOfSample) {
       newErrors.dateOfSample = 'Sample date is required';
     }
@@ -287,7 +312,6 @@ export const SampleForm: React.FC<SampleFormProps> = ({
     if (!formData.itemNameEN.trim()) requiredFields.push('English Item Name');
     if (!formData.itemNameAR.trim()) requiredFields.push('Arabic Item Name');
     if (!formData.supplierId) requiredFields.push('Supplier');
-    if (!formData.batchNumber.trim()) requiredFields.push('Patch Number');
     if (!formData.dateOfSample) requiredFields.push('Sample Date');
     
     return requiredFields;
@@ -375,47 +399,60 @@ export const SampleForm: React.FC<SampleFormProps> = ({
     setLoading(true);
     
     try {
-      // Generate barcode and unique QR code for new samples
+      // Use unified QR/barcode system (auto-generated via hook)
       let barcode = sample?.barcode;
       let qrCode = sample?.qrCode;
-      let qrImageBase64 = '';
+      let qrImageBase64 = sample?.qrImageBase64 || '';
+      let qrPayload = sample?.qrPayload || '';
+      let scanAliases = sample?.scanAliases || [];
       
-      if (!sample) {
-        // Generate barcode using the sample number (will be assigned by service)
-        const tempSampleNo = Date.now() % 1000000; // Temporary sample number
-        barcode = barcodeGenerator.generateBarcodeString(tempSampleNo);
-        
-        // Generate unique QR code with comprehensive sample data
-        const qrData = {
-          sampleId: formData.customIdNo || `sample-${Date.now()}`,
-          sampleNo: tempSampleNo,
-          itemNameEN: formData.itemNameEN,
-          itemNameAR: formData.itemNameAR,
-          supplierId: formData.supplierId,
-          supplierCode: formData.supplierCode,
-          batchNumber: formData.batchNumber,
-          storageLocation: {
-            rackArea: formData.storageLocation.rackNumber,
-            rackNumber: formData.storageLocation.rackNumber,
-            position: formData.storageLocation.position
-          },
-          createdAt: new Date(),
-          customIdNo: formData.customIdNo
+      // If QR data was auto-generated, use it
+      if (qrData) {
+        qrImageBase64 = qrData.qrImage;
+        qrPayload = qrData.qrPayload;
+        barcode = qrData.barcode;
+        qrCode = qrData.qrPayload; // Store payload as qrCode for backwards compatibility
+      } else {
+        // Generate unified codes on-the-fly for new samples
+        const tempId = sample?.id || `sample-${crypto.randomUUID()}`;
+        const materialData = {
+          id: tempId,
+          code: formData.customIdNo || tempId,
+          name: formData.itemNameEN || formData.itemNameAR || 'New Sample',
+          type: 'sample' as const
         };
-
-        const qrResult = await qrGenerator.generateSampleQR(qrData);
-        qrCode = qrResult.qrId;
-        qrImageBase64 = qrResult.qrImageBase64;
+        
+        const generated = await import('@/lib/qr/generator').then(m => 
+          m.generateMaterialCodes(materialData)
+        );
+        
+        qrCode = generated.qrPayload;
+        qrImageBase64 = generated.qrImage;
+        barcode = generated.barcode;
+        qrPayload = generated.qrPayload;
       }
+      
+      // Build comprehensive scan aliases
+      scanAliases = [
+        qrPayload,
+        barcode,
+        `RM:sample-${sample?.id || formData.customIdNo || ''}`,
+        `sample-${sample?.id || formData.customIdNo || ''}`,
+        ...(formData.customIdNo ? [`S:${formData.customIdNo}`, formData.customIdNo] : []),
+        ...(sample?.scanAliases || [])
+      ].filter(Boolean);
+      
+      console.log('[SampleForm] Universal QR generated:', { qrPayload, barcode, aliasCount: scanAliases.length });
 
       
       const sampleData = {
         ...formData,
-        patchNumber: formData.batchNumber, // Map batchNumber form field to patchNumber
         dateOfSample: new Date(formData.dateOfSample),
         barcode,
         qrCode,
         qrImageBase64, // Store the QR image for printing
+        qrPayload, // NEW: Store the unified QR payload
+        scanAliases, // NEW: Store all scan aliases
         ledger: ledgerData, // Include ledger data if provided
         storageLocation: {
           rackNumber: formData.storageLocation.rackNumber,
@@ -630,20 +667,6 @@ export const SampleForm: React.FC<SampleFormProps> = ({
             </div>
 
             <div>
-              <Label htmlFor="batchNumber">Patch Number *</Label>
-              <Input
-                id="batchNumber"
-                value={formData.batchNumber}
-                onChange={(e) => handleInputChange('batchNumber', e.target.value)}
-                placeholder="Enter patch number"
-                className={errors.batchNumber ? 'border-red-500' : ''}
-              />
-              {errors.batchNumber && (
-                <p className="text-red-500 text-sm mt-1">{errors.batchNumber}</p>
-              )}
-            </div>
-
-            <div>
               <Label htmlFor="customIdNo">Custom ID Number</Label>
               <Input
                 id="customIdNo"
@@ -676,6 +699,80 @@ export const SampleForm: React.FC<SampleFormProps> = ({
                   )}
                 </div>
               )}
+            </div>
+
+            {/* Customer Field */}
+            <div>
+              <Label htmlFor="customerId">Customer</Label>
+              <Select
+                value={formData.customerId}
+                onValueChange={(value) => handleInputChange('customerId', value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select customer" />
+                </SelectTrigger>
+                <SelectContent>
+                  {customers.map((customer) => (
+                    <SelectItem key={customer.id} value={customer.id}>
+                      {customer.name} {customer.code && `[${customer.code}]`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-500 mt-1">
+                Select the customer who submitted this sample
+              </p>
+            </div>
+
+            {/* Customer Sample Number */}
+            <div>
+              <Label htmlFor="customerSampleNumber">Customer Sample Number</Label>
+              <Input
+                id="customerSampleNumber"
+                value={formData.customerSampleNumber}
+                onChange={(e) => handleInputChange('customerSampleNumber', e.target.value)}
+                placeholder="Enter customer's sample number"
+              />
+            </div>
+
+            {/* Storage: Rack Number */}
+            <div>
+              <Label htmlFor="rackNumber">Rack Number</Label>
+              <Input
+                id="rackNumber"
+                value={formData.storageLocation.rackNumber}
+                onChange={(e) => {
+                  handleStorageLocationChange('rackNumber', e.target.value);
+                  if (selectedCompany) {
+                    const company = companies.find(c => c.id === selectedCompany);
+                    if (company && e.target.value) {
+                      const nextPosition = companyService.getNextPositionInRack(e.target.value);
+                      const sampleNumber = companyService.generateSampleNumber(e.target.value, company.initials);
+                      setFormData(prev => ({
+                        ...prev,
+                        customIdNo: sampleNumber,
+                        storageLocation: {
+                          ...prev.storageLocation,
+                          position: nextPosition
+                        }
+                      }));
+                    }
+                  }
+                }}
+                placeholder="Enter rack number (e.g., A1, B2, C3)"
+              />
+            </div>
+
+            {/* Storage: Notes */}
+            <div>
+              <Label htmlFor="storageNotes">Storage Notes</Label>
+              <Textarea
+                id="storageNotes"
+                value={formData.storageLocation.notes}
+                onChange={(e) => handleStorageLocationChange('notes', e.target.value)}
+                placeholder="Additional storage notes..."
+                rows={2}
+              />
             </div>
 
             {/* Raw Material Checkbox */}
@@ -783,65 +880,77 @@ export const SampleForm: React.FC<SampleFormProps> = ({
               />
             </div>
 
-            <Separator className="my-4" />
-
-            <div>
-              <Label htmlFor="rackNumber">Rack Number</Label>
-              <Input
-                id="rackNumber"
-                value={formData.storageLocation.rackNumber}
-                onChange={(e) => {
-                  handleStorageLocationChange('rackNumber', e.target.value);
-                  if (selectedCompany) {
-                    const company = companies.find(c => c.id === selectedCompany);
-                    if (company && e.target.value) {
-                      const nextPosition = companyService.getNextPositionInRack(e.target.value);
-                      const sampleNumber = companyService.generateSampleNumber(e.target.value, company.initials);
-                      setFormData(prev => ({
-                        ...prev,
-                        customIdNo: sampleNumber,
-                        storageLocation: {
-                          ...prev.storageLocation,
-                          position: nextPosition
-                        }
-                      }));
-                    }
-                  }
-                }}
-                placeholder="Enter rack number (e.g., A1, B2, C3)"
-                className={errors.rackNumber ? 'border-red-500' : ''}
-              />
-              {errors.rackNumber && (
-                <p className="text-red-500 text-sm mt-1">{errors.rackNumber}</p>
-              )}
-            </div>
-
-            <div>
-              <Label htmlFor="storageNotes">Storage Notes</Label>
-              <Textarea
-                id="storageNotes"
-                value={formData.storageLocation.notes}
-                onChange={(e) => handleStorageLocationChange('notes', e.target.value)}
-                placeholder="Additional storage notes..."
-                rows={2}
-              />
-            </div>
-
-            {formData.storageLocation.rackNumber && selectedCompany && (
-              <div className="p-3 bg-blue-50 rounded-lg">
-                <p className="text-sm text-blue-800">
-                  <strong>Sample Number:</strong> {formData.customIdNo}
-                </p>
-                <p className="text-sm text-blue-800">
-                  <strong>Position:</strong> {formData.storageLocation.position} in rack {formData.storageLocation.rackNumber}
-                </p>
-              </div>
-            )}
-
           </CardContent>
         </Card>
       </div>
 
+      {/* QR Code & Barcode Display - Only for existing samples */}
+      {sample?.id && (
+        <Card className="border-2 border-blue-200 bg-blue-50/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <QrCode className="h-5 w-5" />
+              QR Code & Barcode
+            </CardTitle>
+            <CardDescription>
+              Unified scanning codes for this sample
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {isGenerating ? (
+              <div className="flex items-center justify-center py-8 text-gray-500">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3"></div>
+                Generating QR code and barcode...
+              </div>
+            ) : qrData ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* QR Code */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">QR Code</Label>
+                  <div className="border-2 border-gray-200 rounded-lg p-4 bg-white flex flex-col items-center">
+                    <img 
+                      src={qrData.qrImage} 
+                      alt="Sample QR Code" 
+                      className="w-48 h-48 border border-gray-300 rounded"
+                    />
+                    <p className="text-xs text-gray-500 mt-2 text-center break-all max-w-[200px]">
+                      {qrData.qrPayload}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Barcode */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Linear Barcode</Label>
+                  <div className="border-2 border-gray-200 rounded-lg p-4 bg-white flex flex-col items-center justify-center">
+                    <div className="text-3xl font-mono tracking-wider mb-2">
+                      {qrData.barcode}
+                    </div>
+                    <div className="flex gap-1 mt-2">
+                      {qrData.barcode.split('').map((char, i) => (
+                        <div key={i} className={`h-24 ${i % 2 === 0 ? 'w-1 bg-black' : 'w-2 bg-gray-800'}`} />
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-3">Code 128</p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-4 text-gray-500">
+                QR code will be generated when you save this sample
+              </div>
+            )}
+
+            {qrData && (
+              <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-sm text-green-800">
+                  ✓ This sample can be scanned using the QR code or barcode in any workflow
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Pricing Information */}
       <Card>
@@ -887,6 +996,7 @@ export const SampleForm: React.FC<SampleFormProps> = ({
                         { quantity: 50, price: 0, enabled: true },
                         { quantity: 100, price: 0, enabled: true },
                         { quantity: 200, price: 0, enabled: true },
+                        { quantity: 250, price: 0, enabled: true },
                         { quantity: 500, price: 0, enabled: true },
                         { quantity: 1000, price: 0, enabled: true }
                       ]);

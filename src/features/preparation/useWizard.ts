@@ -55,12 +55,32 @@ export const useWizard = create<State>((set,get)=>({
         const stepsRows = await db.steps.where('sessionId').equals(sessionId).toArray();
         const to4 = (n:number|undefined) => n === undefined ? undefined : parseFloat(Number(n).toFixed(4));
         const traces = stepsRows.map((r:any)=>({ id: crypto.randomUUID(), sampleId: '', rmId: r.ingredientId, lotId: r.lotId ?? undefined, qtyPlanned: to4(r.targetQtyG), qtyActual: to4(r.capturedQtyG), uom: 'g' }));
+        
+        // Look up formula name from localStorage
+        let formulaName = 'Formula Batch';
+        try {
+          const formulasRaw = localStorage.getItem('nbslims_formulas');
+          if (formulasRaw) {
+            const formulas = JSON.parse(formulasRaw);
+            const formula = formulas.find((f: any) => f.id === session?.formulaId || f.formulaId === session?.formulaId);
+            if (formula) {
+              formulaName = formula.name || formula.formulaName || `Batch of ${formula.name || 'Formula'}`;
+            }
+          }
+        } catch (err) {
+          console.warn('[useWizard] Failed to lookup formula name:', err);
+        }
+        
         if (existing){
           existing.source = 'FORMULA'; existing.traceability = 'actual'; existing.status = 'Untested';
           existing.preparationSessionId = sessionId; existing.formulaVersionId = session?.formulaVersionId || session?.formulaId; existing.formulaId = session?.formulaId; existing.formulaVersionLabel = existing.formulaVersionLabel || 'unversioned'; existing.updatedAt = new Date();
           existing.materialTrace = traces;
+          // Update name if it was wrong (UUID)
+          if (!existing.itemNameEN || existing.itemNameEN === session?.formulaId) {
+            existing.itemNameEN = formulaName;
+          }
         } else {
-          samples.unshift({ id: `sample-${Date.now()}`, sampleNo: (samples.length+1), itemNameEN: (session?.formulaId || 'Formula'), supplierId: '', status: 'Untested', createdAt: new Date(), updatedAt: new Date(), source: 'FORMULA', traceability: 'actual', preparationSessionId: sessionId, formulaVersionId: session?.formulaVersionId || session?.formulaId, formulaId: session?.formulaId, formulaVersionLabel: 'unversioned', materialTrace: traces });
+          samples.unshift({ id: `sample-${Date.now()}`, sampleNo: (samples.length+1), itemNameEN: formulaName, supplierId: '', status: 'Untested', createdAt: new Date(), updatedAt: new Date(), source: 'FORMULA', traceability: 'actual', preparationSessionId: sessionId, formulaVersionId: session?.formulaVersionId || session?.formulaId, formulaId: session?.formulaId, formulaVersionLabel: 'unversioned', materialTrace: traces });
         }
         // Integrity enforcement for FORMULA samples
         const latest = existing || samples[0];
@@ -93,7 +113,14 @@ export const useWizard = create<State>((set,get)=>({
     await db.events.add({ sessionId, ts:Date.now(), user:supervisor, action:'HARD_STOP_OVERRIDE', payload:{ reason } });
     const last = await db.sessions.get(sessionId);
     if (!last) return;
-    await get().start(last.formulaId, steps, supervisor);
+    
+    // Generate new step IDs to avoid "Key already exists" error
+    const newSteps = steps.map(s => ({
+      ...s,
+      id: crypto.randomUUID()  // Fresh ID for the new attempt
+    }));
+    
+    await get().start(last.formulaId, newSteps, supervisor);
     set({ status:'scanning' });
   }
 }));

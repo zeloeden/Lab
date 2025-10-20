@@ -2,7 +2,7 @@ import React from 'react';
 import { ShieldCheck, AlertCircle, AlertTriangle, AlertOctagon } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-export type PriorityValue = "low" | "medium" | "high" | "critical";
+export type PriorityValue = "low" | "medium" | "high";
 
 interface PrioritySelectorProps {
   value: PriorityValue;
@@ -33,13 +33,6 @@ const priorityOptions = [
     icon: AlertTriangle,
     gradient: "from-orange-400 to-orange-600",
     shadow: "shadow-orange-500/20"
-  },
-  {
-    value: "critical" as const,
-    label: "Critical",
-    icon: AlertOctagon,
-    gradient: "from-red-400 to-red-600",
-    shadow: "shadow-red-500/20"
   }
 ];
 

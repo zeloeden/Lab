@@ -108,8 +108,23 @@ async function openJaPort(){
 
   async function tryOpen(path, info){
     console.log('[debug] Opening', path, 'at', baudRate);
-    const port = new SerialPort({ path, baudRate, dataBits:8, stopBits:1, parity:'none', rtscts:false, xon:false, xoff:false, autoOpen:true });
-    port.on('open', () => console.log('[serial] OPENED', path));
+    const port = new SerialPort({ 
+      path, 
+      baudRate, 
+      dataBits:8, 
+      stopBits:1, 
+      parity:'none', 
+      rtscts:false, 
+      xon:false, 
+      xoff:false, 
+      xany:false,
+      hupcl:false,
+      autoOpen:true 
+    });
+    port.on('open', () => {
+      console.log('[serial] OPENED', path);
+      console.log('[serial] Port settings:', { baudRate, dataBits:8, stopBits:1, parity:'none', flowControl:'none' });
+    });
     port.on('error', (err) => console.error('[serial] ERROR:', err?.message || err));
     port.on('close', () => console.warn('[serial] CLOSED'));
     if (info) console.log(`[serial] using PORT=${info.path || path} (chip: ${info.friendlyName || info.manufacturer || info.serialNumber || 'unknown'})`);
@@ -215,27 +230,35 @@ async function openJaPort(){
   }
 
   port.on('data', (buf) => {
+    console.log('[DATA EVENT] Received buffer, length:', buf.length);
     try {
       const chunk = buf.toString('utf8');
+      console.log('[DATA EVENT] Chunk:', JSON.stringify(chunk));
       lineBuf += chunk;
       const parts = lineBuf.split(/\r|\n/);
       lineBuf = parts.pop() || '';
       for (const line of parts){
         const trimmed = String(line || '').trim();
-        if (trimmed) broadcast(trimmed);
+        if (trimmed) {
+          console.log('[parse] Line:', JSON.stringify(trimmed));
+          broadcast(trimmed);
+        }
         const w = parseNumericWeight(trimmed);
         if (typeof w === 'number' && !Number.isNaN(w)){
+          console.log('[parse] Extracted weight:', w, 'g');
           const t = Date.now();
           lastReadings.push({ t, w });
           if (lastReadings.length > 24) lastReadings.shift();
           maybeAutoTare(w);
         }
       }
-    } catch {}
+    } catch (e) {
+      console.error('[parse] Error:', e?.message);
+    }
   });
 
-  // Optionally assert DTR/RTS
-  try { if (process.env.JA_SET_DTR_RTS !== '0') port.set({ dtr:true, rts:false }, ()=>{}); } catch {}
+  // Optionally assert DTR/RTS - DISABLED to match PowerShell behavior
+  // try { if (process.env.JA_SET_DTR_RTS !== '0') port.set({ dtr:true, rts:false }, ()=>{}); } catch {}
 
   // Send enable/continuous sequence on connect
   try {

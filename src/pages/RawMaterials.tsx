@@ -285,9 +285,9 @@ export const RawMaterials: React.FC = () => {
   };
 
   const filteredMaterials = materials.filter(material => {
-    const matchesSearch = material.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         material.colorName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         material.supplier?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = (material.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (material.colorName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (material.supplier || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = typeFilter === 'all' || material.type === typeFilter;
     return matchesSearch && matchesType;
   });
